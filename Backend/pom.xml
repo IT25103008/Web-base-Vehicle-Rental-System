@@ -84,6 +84,15 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- @AutoConfigureMockMvc (SecurityRulesTest, ValidationRulesTest): split
+             out of spring-boot-test-autoconfigure into its own module in Spring
+             Boot 4. Without it the annotation is silently ignored and every
+             MockMvc test fails with "No qualifying bean of type MockMvc". -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- In-memory database for BusinessRulesTest / GapFixesTest / SecurityRulesTest.
              Test-scoped only - the application itself always runs on MySQL. -->
