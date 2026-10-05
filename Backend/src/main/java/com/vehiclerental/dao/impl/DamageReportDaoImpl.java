@@ -1,7 +1,6 @@
 package com.vehiclerental.dao.impl;
 
 import com.vehiclerental.dao.AbstractJdbcDao;
-import com.vehiclerental.dao.DamageReportDao;
 import com.vehiclerental.dao.impl.rowmapper.DamageReportRowMapper;
 import com.vehiclerental.model.DamageReport;
 import org.springframework.stereotype.Repository;

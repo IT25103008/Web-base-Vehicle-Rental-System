@@ -1,7 +1,6 @@
 package com.vehiclerental.service.impl;
 
 import com.vehiclerental.dao.BookingDao;
-import com.vehiclerental.dao.DamageReportDao;
 import com.vehiclerental.dao.HandoverDao;
 import com.vehiclerental.dao.MaintenanceDao;
 import com.vehiclerental.dao.VehicleDao;
