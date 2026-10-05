@@ -23,8 +23,6 @@ public class BranchController {
         this.branchService = branchService;
     }
 
-    // ==================== Branches ====================
-
     // Public
     @GetMapping
     public List<Branch> list() {
@@ -75,7 +73,7 @@ public class BranchController {
         return ResponseEntity.ok("Branch deleted");
     }
 
-    // ==================== Vehicle transfers ====================
+    // Vehicle transfers
 
     @PostMapping("/transfers")
     @PreAuthorize("hasRole('ADMINISTRATOR')")

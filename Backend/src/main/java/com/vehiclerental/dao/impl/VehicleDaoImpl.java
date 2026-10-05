@@ -21,9 +21,9 @@ import java.util.Optional;
 public class VehicleDaoImpl extends AbstractJdbcDao<Vehicle, Integer> implements VehicleDao {
 
     /**
-     * Every column except image_data / image_type. The photo is a LONGBLOB, so
+     * Every column except image_data, The photo is a LONGBLOB, so
      * "SELECT *" would drag every image out of the database on every fleet
-     * listing. It is fetched on its own by findImage() instead.
+     * listing. It is fetched on its own by findImage
      */
     private static final String COLS =
         "vehicle_id, branch_id, plate_number, model, category, manufacture_year, "
