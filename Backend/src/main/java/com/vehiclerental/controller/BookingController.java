@@ -58,8 +58,7 @@ public class BookingController {
         this.transferDao = transferDao;
     }
 
-    // Customer creates a booking. The customer id comes from the login session,
-    // NOT from the request body — so a customer can never book on someone else's behalf.
+    // Customer creates a booking, Then customer id comes from the login session not from the request body. So a customer can never book on someone else's behalf
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<BookingResponse> create(
@@ -69,7 +68,7 @@ public class BookingController {
         return ResponseEntity.ok(r);
     }
 
-    // Customers can only see their own bookings; staff/admin can see any.
+    // Customers can only see their own bookings while admins can see any
     @GetMapping("/{id}")
     public BookingResponse findById(@PathVariable int id,
                                     @AuthenticationPrincipal AppUserPrincipal me) {
@@ -78,7 +77,7 @@ public class BookingController {
         return r;
     }
 
-    // Payment status of a booking (customer sees own; staff/admin any).
+    // Payment status of a booking (customer sees own wile admin can any)
     @GetMapping("/{id}/payment")
     public PaymentResponse payment(@PathVariable int id,
                                    @AuthenticationPrincipal AppUserPrincipal me) {
@@ -100,7 +99,7 @@ public class BookingController {
         return bookingService.listByCustomer(me.getUserId());
     }
 
-    // ---------- staff lists: a staff member sees their own branch, an administrator all ----------
+    // staff lists: a staff member sees their own branch while admin can all
     @GetMapping("/pending")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMINISTRATOR')")
     public List<BookingResponse> pending(@AuthenticationPrincipal AppUserPrincipal me) {
@@ -208,7 +207,7 @@ public class BookingController {
         return out;
     }
 
-    // ---------- decisions: each returns the booking as it now stands (B4) ----------
+    // decisions: each returns the booking as it now stands
     @PatchMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMINISTRATOR')")
     public BookingResponse approve(@PathVariable int id,
@@ -228,9 +227,9 @@ public class BookingController {
     }
 
     /**
-     * Approve or reject several requests at once (C3). Each one is decided on
+     * Approve or reject several requests at once. Each one is decided on
      * its own - one that fails (a clash, another branch's booking) does not
-     * stop the rest - and the answer says what happened to every id.
+     * stop the rest - and the answer says what happened to every id
      */
     @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMINISTRATOR')")
@@ -287,7 +286,6 @@ public class BookingController {
         return bookingService.findById(id);
     }
 
-    /** Staff cancel on the customer's behalf — fraud, a vehicle written off. */
     @PatchMapping("/{id}/staff-cancel")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMINISTRATOR')")
     public BookingResponse staffCancel(@PathVariable int id,
@@ -298,7 +296,7 @@ public class BookingController {
         return bookingService.findById(id);
     }
 
-    /** The customer never came for the car (B2). */
+    /** The customer never came for the car */
     @PatchMapping("/{id}/no-show")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMINISTRATOR')")
     public BookingResponse noShow(@PathVariable int id,
@@ -318,7 +316,7 @@ public class BookingController {
         return bookingService.findById(id);
     }
 
-    /** A later return date for an approved or active rental (B1). */
+    /** A later return date for an approved or active rental */
     @PatchMapping("/{id}/extend")
     @PreAuthorize("hasRole('CUSTOMER')")
     public BookingResponse extend(
@@ -344,12 +342,7 @@ public class BookingController {
         return list.stream().filter(b -> b.getPickupBranchId() == scope).collect(Collectors.toList());
     }
 
-    /** The body wins; the old ?reason= form still works for existing API clients. */
-    /**
-     * The reason from the body, or from the older ?reason= parameter. The body
-     * is checked by @Valid; the parameter is checked here, so both paths have
-     * the same limit.
-     */
+
     static String reasonOf(ReasonRequest body, String queryReason) {
         if (body != null && body.getReason() != null && !body.getReason().isBlank()) {
             return body.getReason();

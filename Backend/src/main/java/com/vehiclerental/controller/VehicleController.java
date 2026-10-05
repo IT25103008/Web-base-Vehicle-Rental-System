@@ -58,7 +58,7 @@ public class VehicleController {
         this.branchGuard = branchGuard;
     }
 
-    // Staff/admin: full fleet list, optionally filtered by branch or status
+    // admin: full fleet list, optionally filtered by branch or status
     @GetMapping
     @PreAuthorize("hasAnyRole('STAFF', 'ADMINISTRATOR')")
     public List<Vehicle> list(@RequestParam(required = false) Integer branchId,
@@ -66,7 +66,6 @@ public class VehicleController {
         return vehicleService.findAll(branchId, status);
     }
 
-    /** One page of the fleet for the console (C1). Staff default to their own branch. */
     @GetMapping("/page")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMINISTRATOR')")
     public PageResponse<Vehicle> page(@RequestParam(required = false) String status,
@@ -99,11 +98,6 @@ public class VehicleController {
         return new PageResponse<>(items, pg, s, filtered.size(), counts);
     }
 
-    /**
-     * Public catalogue (E3): every car a customer could book at some point,
-     * without choosing dates. The staff-only list above includes cars that
-     * are off the road or uninsured; this one never does.
-     */
     @GetMapping("/catalogue")
     public List<Vehicle> catalogue() {
         return vehicleDao.findCatalogue(AppClock.today());
@@ -115,13 +109,6 @@ public class VehicleController {
         return vehicleService.findById(id);
     }
 
-    /**
-     * Public: what is free for these dates, e.g.
-     *   GET /api/vehicles/search?pickup=2026-09-20&return=2026-09-23&branchId=1
-     * Optional server-side refinements (E4): category, fuel, minSeats, maxRate,
-     * q (model text), sort = price-asc | price-desc | newest | seats, and
-     * page/size (the full count is then in the X-Total-Count header).
-     */
     @GetMapping("/search")
     public ResponseEntity<List<Vehicle>> search(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate pickup,
@@ -162,10 +149,6 @@ public class VehicleController {
         return ResponseEntity.ok().header("X-Total-Count", String.valueOf(total)).body(list);
     }
 
-    /**
-     * Public: the days this car cannot be booked between two dates (E1), plus
-     * the first free window of the requested length (E2). No customer details.
-     */
     @GetMapping("/{id}/busy")
     public Map<String, Object> busy(
             @PathVariable int id,
@@ -190,7 +173,7 @@ public class VehicleController {
         return out;
     }
 
-    /** Public: just the first pickup date the car is free for `nights` nights (E2). */
+    /** Public: just the first pickup date the car is free for `nights` nights */
     @GetMapping("/{id}/next-free")
     public Map<String, Object> nextFree(
             @PathVariable int id,
@@ -224,10 +207,7 @@ public class VehicleController {
         return vehicleService.update(id, body.toModel(), me.getUserId());
     }
 
-    // Public: the photo itself. Customers browsing the fleet need it, so this
-    // is readable by anyone, exactly like GET /api/vehicles/{id}.
-    // ?w=480 serves a copy scaled to that width, so a card does not download
-    // the full-size original.
+    // Public: the photo itself. Customers browsing the fleet need it, so this is readable by anyone
     @GetMapping("/{id}/image")
     public ResponseEntity<byte[]> image(@PathVariable int id, @RequestParam(required = false) Integer w) {
         return vehicleImageService.find(id)
@@ -235,12 +215,7 @@ public class VehicleController {
             .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    // Photo for a vehicle. Staff take the picture at the counter, so this is
-    // open to them as well as administrators.
-    // No `consumes` restriction on purpose: when a mapping matches the path but
-    // not the content type, Spring falls through to the static-resource handler
-    // and the caller sees "No endpoint at this path", which points at entirely
-    // the wrong problem. Let the request in and let the binder complain clearly.
+    // Photo for a vehicle. Staff take the picture at the counter, so this is open to them as well as administrators.
     @PostMapping("/{id}/image")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMINISTRATOR')")
     public Vehicle uploadImage(@PathVariable int id,
@@ -256,7 +231,7 @@ public class VehicleController {
         return vehicleImageService.remove(id, me.getUserId());
     }
 
-    // ---------- more photos (E5) ----------
+    // more photos
     /** Public: the extra photos of a car, in order. */
     @GetMapping("/{id}/images")
     public List<VehicleImageService.GalleryPhoto> gallery(@PathVariable int id) {
