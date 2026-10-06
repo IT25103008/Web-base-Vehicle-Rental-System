@@ -9,6 +9,8 @@ import com.vehiclerental.enums.BookingStatus;
 import com.vehiclerental.enums.NotificationChannel;
 import com.vehiclerental.exception.DoubleBookingException;
 import com.vehiclerental.exception.InvalidStatusTransitionException;
+import com.vehiclerental.exception.ResourceNotFoundException;
+import com.vehiclerental.exception.UnauthorizedActionException;
 import com.vehiclerental.model.*;
 import com.vehiclerental.security.BranchGuard;
 import com.vehiclerental.service.*;
