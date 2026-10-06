@@ -1,3 +1,5 @@
+package com.vehiclerental;
+
 import com.vehiclerental.util.AppClock;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
