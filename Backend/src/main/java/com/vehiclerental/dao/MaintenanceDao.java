@@ -22,5 +22,8 @@ public interface MaintenanceDao {
     /** Work that should have started by now but is still SCHEDULED. */
     List<MaintenanceRecord> findDueToStart(java.time.LocalDate asOf);
     void updateStatus(int eventId, String newStatus);
+
+    /** Rewrites the editable fields of a record; its vehicle, staff member and status are untouched. */
+    void update(MaintenanceRecord record);
     void delete(int eventId);
 }

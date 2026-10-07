@@ -1,12 +1,13 @@
 package com.vehiclerental.controller;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Max;
 import com.vehiclerental.dto.request.CreateMaintenanceRequest;
+import com.vehiclerental.dto.request.UpdateMaintenanceRequest;
 import com.vehiclerental.dto.response.MaintenanceResponse;
 import com.vehiclerental.security.AppUserPrincipal;
 import com.vehiclerental.service.MaintenanceService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,6 +32,14 @@ public class MaintenanceController {
             @AuthenticationPrincipal AppUserPrincipal me) {
         MaintenanceResponse r = maintenanceService.create(me.getUserId(), request);
         return ResponseEntity.ok(r);
+    }
+
+    /** Edit a service record (what can change depends on its status). */
+    @PutMapping("/{id}")
+    public MaintenanceResponse update(@PathVariable int id,
+                                      @Valid @RequestBody UpdateMaintenanceRequest request,
+                                      @AuthenticationPrincipal AppUserPrincipal me) {
+        return maintenanceService.update(id, request, me.getUserId());
     }
 
     @GetMapping("/{id}")

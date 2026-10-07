@@ -86,6 +86,22 @@ public class MaintenanceDaoImpl extends AbstractJdbcDao<MaintenanceRecord, Integ
     }
 
     @Override
+    public void update(MaintenanceRecord m) {
+        String sql = "UPDATE maintenance_records SET service_date = ?, expected_end_date = ?, repair_type = ?, " +
+                "cost = ?, service_provider = ?, next_service_date = ?, description = ? " +
+                "WHERE maintenance_id = ?";
+        executeUpdate(sql,
+                Date.valueOf(m.getEventDate()),
+                m.getExpectedEndDate() != null ? Date.valueOf(m.getExpectedEndDate()) : null,
+                m.getRepairType(),
+                m.getCost(),
+                m.getServiceProvider(),
+                m.getNextServiceDate() != null ? Date.valueOf(m.getNextServiceDate()) : null,
+                m.getDescription(),
+                m.getEventId());
+    }
+
+    @Override
     public void delete(int eventId) {
         String sql = "DELETE FROM maintenance_records WHERE maintenance_id = ?";
         executeUpdate(sql, eventId);
