@@ -9,6 +9,9 @@ public interface PaymentDao {
     Payment save(Payment payment);
     Optional<Payment> findById(int paymentId);
     Optional<Payment> findByBooking(int bookingId);
+
+    /** Removes the payment row of a booking (only ever one that was never charged). */
+    void deleteByBooking(int bookingId);
     List<Payment> findByStatus(String status);
     List<Payment> findAll();
     void updateStatus(int paymentId, String newStatus, Integer updatedByStaffId);
