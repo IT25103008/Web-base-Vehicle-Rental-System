@@ -76,4 +76,7 @@ public interface BookingDao {
     void updateReturnOutcome(int bookingId, LocalDate actualReturnDate, BigDecimal finalCost);
 
     void updateFinalCost(int bookingId, BigDecimal finalCost);
+
+    /** Removes the booking row. The service makes sure nothing else still points at it. */
+    void delete(int bookingId);
 }
