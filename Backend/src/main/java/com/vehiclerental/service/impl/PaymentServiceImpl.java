@@ -4,13 +4,13 @@ import com.vehiclerental.dao.BookingDao;
 import com.vehiclerental.dao.PaymentDao;
 import com.vehiclerental.dto.response.PageResponse;
 import com.vehiclerental.dto.response.PaymentResponse;
+import com.vehiclerental.security.BranchGuard;
 import com.vehiclerental.enums.BookingStatus;
 import com.vehiclerental.enums.PaymentStatus;
 import com.vehiclerental.exception.InvalidStatusTransitionException;
 import com.vehiclerental.exception.ResourceNotFoundException;
 import com.vehiclerental.model.Booking;
 import com.vehiclerental.model.Payment;
-import com.vehiclerental.security.BranchGuard;
 import com.vehiclerental.service.AuditService;
 import com.vehiclerental.service.NotificationService;
 import com.vehiclerental.service.PaymentService;
@@ -311,6 +311,21 @@ public class PaymentServiceImpl implements PaymentService {
         }
         counts.put("all", paymentDao.count(null, branchId, text));
         return new PageResponse<>(items, pg, s, paymentDao.count(st, branchId, text), counts);
+    }
+
+    @Override
+    @Transactional
+    public String deleteForBooking(int bookingId, int actorUserId) {
+        Optional<Payment> maybe = paymentDao.findByBooking(bookingId);
+        if (maybe.isEmpty()) {
+            return null;     // nothing was ever raised
+        }
+        Payment p = maybe.get();
+        String what = p.getStatus() + " " + p.getAmount();
+        paymentDao.deleteByBooking(bookingId);
+        auditService.record("PAYMENT", p.getPaymentId(), "DELETE", actorUserId,
+                            "Removed with booking #" + bookingId + " (was " + what + ")");
+        return what;
     }
 
     @Override
