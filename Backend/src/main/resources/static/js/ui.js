@@ -587,6 +587,9 @@ export async function promptDialog({
       ${field({ name: 'reason', label, type: 'textarea', span: true, required, hint: placeholder })}`,
     submitLabel: confirmLabel,
     tone,
+    // Hand the typed values back; without this openDialog resolves to plain
+    // `true` and the reason is lost (every prompt then looked "cancelled").
+    onSubmit: (v) => v,
   });
   if (!values) return null;
   const reason = (values.reason || '').trim();
