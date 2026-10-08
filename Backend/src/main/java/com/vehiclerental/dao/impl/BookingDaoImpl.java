@@ -126,7 +126,7 @@ public class BookingDaoImpl extends AbstractJdbcDao<Booking, Integer> implements
 
     @Override
     public int countLiveByCustomer(int customerId) {
-        // Reuses queryList so we stay inside the shared JDBC helpers
+        // Reuses queryList so we stay inside the shared JDBC helpers.
         String sql = "SELECT * FROM bookings WHERE customer_id = ? AND status IN " + LIVE_STATUSES;
         return queryList(sql, mapper, customerId).size();
     }
@@ -199,8 +199,15 @@ public class BookingDaoImpl extends AbstractJdbcDao<Booking, Integer> implements
         executeUpdate("UPDATE bookings SET final_cost = ? WHERE booking_id = ?", finalCost, bookingId);
     }
 
-    // Paging for the staff console, searches the customer's name and email, the vehicle's model and plate, and
-    // the booking number
+    @Override
+    public void delete(int bookingId) {
+        executeUpdate("DELETE FROM bookings WHERE booking_id = ?", bookingId);
+    }
+
+    // ------------------------------------------------------------
+    // Paging for the staff console (C1). Searches the customer's name and
+    // email, the vehicle's model and plate, and the booking number.
+    // ------------------------------------------------------------
     @Override
     public List<Booking> findPage(String status, Integer branchId, String text, int offset, int limit) {
         StringBuilder sql = new StringBuilder("SELECT b.* FROM bookings b "
