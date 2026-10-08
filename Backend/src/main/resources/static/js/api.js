@@ -260,7 +260,6 @@ export const api = {
     byVehicle: (vehicleId) => get(`/api/maintenance/vehicle/${vehicleId}`),
     reminders: (days = 30) => get('/api/maintenance/reminders', { days }),
     create: (payload) => post('/api/maintenance', payload),
-    update: (id, payload) => put(`/api/maintenance/${id}`, payload),
     setStatus: (id, status) => patch(`/api/maintenance/${id}/status`, { status }),
     start: (id) => patch(`/api/maintenance/${id}/status`, { status: 'IN_PROGRESS' }),
     complete: (id) => patch(`/api/maintenance/${id}/complete`),

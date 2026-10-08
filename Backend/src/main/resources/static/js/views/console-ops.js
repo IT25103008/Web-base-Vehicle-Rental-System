@@ -585,10 +585,6 @@ export async function renderMaintenance({ el, query }) {
       const ok = await maintenanceDialog(fleet);
       if (ok) await load();
     }
-    if (action === 'edit') {
-      const record = [...state.records, ...state.due].find((r) => r.eventId === id);
-      if (record && await maintenanceDialog(await getFleet(), record)) await load();
-    }
     if (action === 'start' && await runAction(btn, () => api.maintenance.setStatus(id, 'IN_PROGRESS'), 'Work started')) await load();
     if (action === 'complete') {
       const ok = await confirmDialog({ title: 'Complete this service?', text: 'If nothing else is holding the vehicle — another workshop booking or an unresolved damage report — it goes back on the road.', confirmLabel: 'Complete' });
@@ -621,90 +617,46 @@ function workshopWindow(m, users) {
 function maintenanceActions(m) {
   const id = m.eventId;
   const del = `<button class="icon-btn icon-btn--sm" data-mnt="delete" data-id="${id}" aria-label="Delete" title="Delete">${icon('trash', 16)}</button>`;
-  const edit = `<button class="icon-btn icon-btn--sm" data-mnt="edit" data-id="${id}" aria-label="Edit" title="Edit this record">${icon('edit', 16)}</button>`;
   if (m.status === 'SCHEDULED') {
     return `<button class="btn btn--sm btn--tonal" data-mnt="start" data-id="${id}">Start</button>
             <button class="btn btn--sm" data-mnt="complete" data-id="${id}">${icon('check', 16)} Complete</button>
-            <button class="btn btn--sm btn--text" data-mnt="cancel" data-id="${id}">Cancel</button>${edit}${del}`;
+            <button class="btn btn--sm btn--text" data-mnt="cancel" data-id="${id}">Cancel</button>${del}`;
   }
   if (m.status === 'IN_PROGRESS') {
     return `<button class="btn btn--sm" data-mnt="complete" data-id="${id}">${icon('check', 16)} Complete</button>
-            <button class="btn btn--sm btn--text" data-mnt="cancel" data-id="${id}">Cancel</button>${edit}`;
+            <button class="btn btn--sm btn--text" data-mnt="cancel" data-id="${id}">Cancel</button>`;
   }
-  // Completed work is part of the vehicle's service history: it can be corrected, not removed.
-  if (m.status === 'COMPLETED') {
-    return `<span class="muted" style="font-size:12px">On record</span>${edit}`;
-  }
-  return m.status === 'CANCELLED' ? del : '';
+  // Completed and cancelled work is part of the vehicle's service history.
+  return m.status === 'CANCELLED' ? del : '<span class="muted" style="font-size:12px">On record</span>';
 }
 
-/**
- * One dialog for logging a service and for editing one. With a record, it is
- * the editor: the vehicle is fixed, and which dates can move depends on the
- * record's status (the server enforces the same rules).
- *   SCHEDULED    everything can change
- *   IN_PROGRESS  the start is fixed; the end date can move
- *   COMPLETED    the dates are locked; cost, provider, notes etc. can be corrected
- */
-function maintenanceDialog(fleet, record = null) {
-  const editing = Boolean(record);
-  const today = isoDate();
-  const done = editing && record.status === 'COMPLETED';
-  const running = editing && record.status === 'IN_PROGRESS';
-  const car = editing ? fleet.find((v) => v.vehicleId === record.vehicleId) : null;
-  const lockedNote = done
-    ? 'This work is finished, so its dates are part of the vehicle\u2019s service history and stay as they are. You can correct the cost, provider, work type, notes and next service date.'
-    : running
-      ? 'This work has already started, so the service date is fixed. You can move the \u201cback on the road by\u201d date if the job overruns or finishes early.'
-      : 'The service date and the \u201cback on the road by\u201d date block customer bookings for that window, so a car scheduled for next month stays rentable until then.';
-
+function maintenanceDialog(fleet) {
   return openDialog({
-    title: editing ? 'Edit service record' : 'Log a service',
-    subtitle: editing
-      ? `${car ? `${car.model} \u00b7 ${car.plateNumber}` : `Vehicle ${record.vehicleId}`} \u00b7 record #${record.eventId}`
-      : 'Booking a vehicle into the workshop reserves it for those dates.',
-    submitLabel: editing ? 'Save changes' : 'Save record',
+    title: 'Log a service',
+    subtitle: 'Booking a vehicle into the workshop reserves it for those dates.',
+    submitLabel: 'Save record',
     wide: true,
     body: `<div class="form-grid">
-      ${field({ name: 'vehicleId', label: 'Vehicle', type: 'select', options: vehicleOptions(fleet), value: editing ? record.vehicleId : '', required: true, span: true, disabled: editing })}
-      ${field({ name: 'repairType', label: 'Work type', required: true, value: editing ? record.repairType || '' : '', hint: 'e.g. Full service, Brake pads' })}
-      ${field({ name: 'serviceProvider', label: 'Service provider', required: true, value: editing ? record.serviceProvider || '' : '' })}
-      ${field({ name: 'eventDate', label: 'Service date', type: 'date', value: editing ? record.eventDate : today, min: editing ? undefined : today, required: true, disabled: done || running })}
-      ${field({ name: 'expectedEndDate', label: 'Back on the road by', type: 'date', value: editing && record.expectedEndDate && record.expectedEndDate !== record.eventDate ? record.expectedEndDate : '', min: running ? today : editing ? undefined : today, after: 'eventDate', afterMsg: 'The vehicle cannot be back before the service date', hint: 'Leave empty for a same-day service', disabled: done })}
-      ${field({ name: 'cost', label: 'Cost (LKR)', type: 'number', min: 0, step: '0.01', required: true, value: editing ? record.cost ?? '' : '' })}
-      ${field({ name: 'nextServiceDate', label: 'Next service (optional)', type: 'date', value: editing ? record.nextServiceDate || '' : '', after: 'expectedEndDate|eventDate', strictAfter: true, afterMsg: 'The next service must fall after this one finishes' })}
-      ${field({ name: 'description', label: 'Notes', type: 'textarea', span: true, value: editing ? record.description || '' : '' })}
-      ${editing ? '' : checkbox({ name: 'startNow', label: 'Start the work now', description: 'Only for work happening today. The vehicle goes into the workshop immediately; otherwise it stays bookable until the service date.' })}
+      ${field({ name: 'vehicleId', label: 'Vehicle', type: 'select', options: vehicleOptions(fleet), required: true, span: true })}
+      ${field({ name: 'repairType', label: 'Work type', required: true, hint: 'e.g. Full service, Brake pads' })}
+      ${field({ name: 'serviceProvider', label: 'Service provider', required: true })}
+      ${field({ name: 'eventDate', label: 'Service date', type: 'date', value: isoDate(), min: isoDate(), required: true })}
+      ${field({ name: 'expectedEndDate', label: 'Back on the road by', type: 'date', min: isoDate(), after: 'eventDate', afterMsg: 'The vehicle cannot be back before the service date', hint: 'Leave empty for a same-day service' })}
+      ${field({ name: 'cost', label: 'Cost (LKR)', type: 'number', min: 0, step: '0.01', required: true })}
+      ${field({ name: 'nextServiceDate', label: 'Next service (optional)', type: 'date', after: 'expectedEndDate|eventDate', strictAfter: true, afterMsg: 'The next service must fall after this one finishes' })}
+      ${field({ name: 'description', label: 'Notes', type: 'textarea', span: true })}
+      ${checkbox({ name: 'startNow', label: 'Start the work now', description: 'Only for work happening today. The vehicle goes into the workshop immediately; otherwise it stays bookable until the service date.' })}
     </div>
-    <div class="notice">${icon('info', 18)}<span>${lockedNote}</span></div>`,
+    <div class="notice">${icon('info', 18)}<span>The service date and the “back on the road by” date block customer bookings for that window, so a car scheduled for next month stays rentable until then.</span></div>`,
     async onSubmit(values) {
-      // Locked boxes are not part of the form, so they keep the record's own values.
-      const eventDate = editing && (done || running) ? record.eventDate : values.eventDate;
-      const expectedEndDate = editing && done ? record.expectedEndDate || null : values.expectedEndDate || null;
-      const end = expectedEndDate || eventDate;
-      if (end < eventDate) {
+      const end = values.expectedEndDate || values.eventDate;
+      if (end < values.eventDate) {
         throw new Error('The end date cannot be before the service date.');
       }
       if (values.nextServiceDate && values.nextServiceDate <= end) {
         throw new Error('The next service reminder must fall after this service finishes.');
       }
-      if (editing) {
-        if (running && end < today) {
-          throw new Error('The vehicle cannot be due back before today while the work is in progress. Complete the record instead.');
-        }
-        await api.maintenance.update(record.eventId, {
-          eventDate,
-          expectedEndDate,
-          repairType: values.repairType,
-          serviceProvider: values.serviceProvider,
-          cost: values.cost,
-          nextServiceDate: values.nextServiceDate || null,
-          description: values.description || null,
-        });
-        toast('Service record updated', 'success');
-        return;
-      }
-      if (values.startNow && values.eventDate !== today) {
+      if (values.startNow && values.eventDate !== isoDate()) {
         throw new Error('Work can only be started immediately when the service date is today.');
       }
       await api.maintenance.create({
