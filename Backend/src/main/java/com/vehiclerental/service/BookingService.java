@@ -1,82 +1,61 @@
-package com.vehiclerental.dao;
+package com.vehiclerental.service;
 
-import com.vehiclerental.model.Booking;
+import com.vehiclerental.dto.request.CreateBookingRequest;
+import com.vehiclerental.dto.response.BookingResponse;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
-public interface BookingDao {
+public interface BookingService {
 
-    Booking save(Booking booking);
+    BookingResponse create(int customerId, CreateBookingRequest request);
 
-    Optional<Booking> findById(int bookingId);
+    BookingResponse findById(int bookingId);
 
-    List<Booking> findAll();
+    List<BookingResponse> listByCustomer(int customerId);
 
-    List<Booking> findByCustomer(int customerId);
+    List<BookingResponse> listPending();
 
-    List<Booking> findByStatus(String status);
+    List<BookingResponse> listAll();
 
-    /** Every booking ever made for a vehicle, live or not. */
-    List<Booking> findByVehicle(int vehicleId);
+    /** Rentals whose return date has passed and the vehicle is still out. */
+    List<BookingResponse> listOverdueReturns();
 
-    /** Any 'live' booking (not cancelled/rejected/completed) that overlaps the date range. */
-    List<Booking> findOverlapping(int vehicleId, LocalDate pickup, LocalDate returnDate);
+    /** Approved bookings whose pickup date has passed without anyone collecting the vehicle. */
+    List<BookingResponse> listMissedPickups();
+
+    void approve(int bookingId, int approverStaffId);
+
+    void reject(int bookingId, int approverStaffId, String reason);
+
+    /** The customer calls this off themselves. Only allowed before the pickup day. */
+    void cancelByCustomer(int bookingId, int callerUserId, String reason);
+
+    /** Staff cancel on the customer's behalf (no-show, fraud, vehicle written off). */
+    void cancelByStaff(int bookingId, int staffUserId, String reason);
+
+    void modifyDates(int bookingId, int callerUserId, LocalDate newPickup, LocalDate newReturn);
+
+    /** Approved but never collected. staffId null = closed by the daily run. */
+    BookingResponse markNoShow(int bookingId, Integer staffId, String reason);
+
+    /** Closes every approved booking still uncollected after the grace period; returns how many. */
+    int closeNoShows(LocalDate asOf);
+
+    /** A later return date for an approved or active rental, re-quoted. */
+    BookingResponse extend(int bookingId, int customerId, LocalDate newReturn);
 
     /**
-     * Same as above but ignoring one booking — used when a customer changes the
-     * dates of a booking that already exists.
+     * Permanently removes a booking and everything attached to it: its pick-up and
+     * return records, resolved damage reports and their claims, and its payment.
+     * Refused while the car is out with the customer (record the return first) and
+     * while a damage report from the rental is still under review. Administrators
+     * only, with a reason; the audit trail keeps what was removed.
      */
-    List<Booking> findOverlapping(int vehicleId, LocalDate pickup, LocalDate returnDate,
-                                  Integer excludeBookingId);
+    void delete(int bookingId, int actorUserId, String reason);
 
-    /**
-     * Live bookings the SAME CUSTOMER already has in that window, on any vehicle.
-     * One person cannot drive two cars at once.
-     */
-    List<Booking> findOverlappingForCustomer(int customerId, LocalDate pickup, LocalDate returnDate,
-                                             Integer excludeBookingId);
+    com.vehiclerental.dto.response.BookingChargesResponse charges(int bookingId);
 
-    /** How many bookings this customer has open right now (pending/approved/active). */
-    int countLiveByCustomer(int customerId);
-
-    /** Every live booking for a vehicle — used before maintenance, transfers and status changes. */
-    List<Booking> findLiveByVehicle(int vehicleId);
-
-    /** Live bookings for a vehicle that overlap a date window. */
-    List<Booking> findLiveByVehicleInWindow(int vehicleId, LocalDate from, LocalDate to);
-
-    /** ACTIVE_RENTAL bookings whose return date has already passed. */
-    List<Booking> findOverdueReturns(LocalDate asOf);
-
-    /** APPROVED bookings whose pickup date has already passed — the customer never showed up. */
-    List<Booking> findMissedPickups(LocalDate asOf);
-
-    /** ACTIVE_RENTAL bookings due back on a given day (used for reminders). */
-    List<Booking> findReturnsDueOn(LocalDate day);
-
-    /** APPROVED bookings for a vehicle with a pickup due on or before the given day. */
-    List<Booking> findApprovedPickupsDueBy(int vehicleId, LocalDate day);
-
-    void updateStatus(int bookingId, String newStatus);
-
-    /** One page for the console (C1): status null or "all" = every status; branchId null = every branch. */
-    List<Booking> findPage(String status, Integer branchId, String text, int offset, int limit);
-    java.util.Map<String, Long> countByStatus(Integer branchId, String text);
-    List<Booking> findLiveInWindow(LocalDate from, LocalDate to, Integer branchId);
-    List<Booking> findLiveByVehicleFrom(int vehicleId, LocalDate from);
-
-    void updateApprover(int bookingId, Integer approverId);
-
-    void updateDates(int bookingId, LocalDate pickup, LocalDate returnDate, BigDecimal newCost);
-
-    /** Written when the vehicle comes back: real return date and what the customer owes. */
-    void updateReturnOutcome(int bookingId, LocalDate actualReturnDate, BigDecimal finalCost);
-
-    void updateFinalCost(int bookingId, BigDecimal finalCost);
-
-    /** Removes the booking row. The service makes sure nothing else still points at it. */
-    void delete(int bookingId);
+    com.vehiclerental.dto.response.PageResponse<BookingResponse> listPage(String status, Integer branchId, String text,
+                                                                         Integer page, Integer size);
 }
