@@ -4,8 +4,9 @@ import com.vehiclerental.dao.AbstractJdbcDao;
 import com.vehiclerental.dao.HandoverDao;
 import com.vehiclerental.dao.impl.rowmapper.HandoverRowMapper;
 import com.vehiclerental.model.Handover;
-import com.vehiclerental.util.AppClock;
 import org.springframework.stereotype.Repository;
+
+import com.vehiclerental.util.AppClock;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
@@ -59,5 +60,10 @@ public class HandoverDaoImpl extends AbstractJdbcDao<Handover, Integer> implemen
     public Optional<Handover> findByBookingAndType(int bookingId, String handoverType) {
         return queryOne("SELECT * FROM handovers WHERE booking_id = ? AND handover_type = ?",
                         mapper, bookingId, handoverType);
+    }
+
+    @Override
+    public void deleteByBooking(int bookingId) {
+        executeUpdate("DELETE FROM handovers WHERE booking_id = ?", bookingId);
     }
 }
