@@ -1,19 +1,32 @@
 package com.vehiclerental.service.impl;
 
-import com.vehiclerental.dao.*;
-import com.vehiclerental.dto.request.CreateBookingRequest;
+import com.vehiclerental.dao.BookingDao;
+import com.vehiclerental.dao.BranchDao;
+import com.vehiclerental.dao.DamageReportDao;
+import com.vehiclerental.dao.HandoverDao;
+import com.vehiclerental.dao.InsuranceClaimDao;
+import com.vehiclerental.dao.UserDao;
+import com.vehiclerental.dao.VehicleDao;
 import com.vehiclerental.dto.response.BookingChargesResponse;
-import com.vehiclerental.dto.response.BookingResponse;
 import com.vehiclerental.dto.response.PageResponse;
+import com.vehiclerental.model.DamageReport;
+import com.vehiclerental.model.Handover;
+import com.vehiclerental.model.InsuranceClaim;
+import com.vehiclerental.security.BranchGuard;
+import com.vehiclerental.dto.request.CreateBookingRequest;
+import com.vehiclerental.dto.response.BookingResponse;
 import com.vehiclerental.enums.BookingStatus;
 import com.vehiclerental.enums.NotificationChannel;
-import com.vehiclerental.exception.DoubleBookingException;
-import com.vehiclerental.exception.InvalidStatusTransitionException;
-import com.vehiclerental.exception.ResourceNotFoundException;
-import com.vehiclerental.exception.UnauthorizedActionException;
-import com.vehiclerental.model.*;
-import com.vehiclerental.security.BranchGuard;
-import com.vehiclerental.service.*;
+import com.vehiclerental.exception.*;
+import com.vehiclerental.model.Booking;
+import com.vehiclerental.model.Branch;
+import com.vehiclerental.model.Vehicle;
+import com.vehiclerental.service.AuditService;
+import com.vehiclerental.service.AvailabilityService;
+import com.vehiclerental.service.BookingService;
+import com.vehiclerental.service.NotificationService;
+import com.vehiclerental.service.PaymentService;
+import com.vehiclerental.service.UserService;
 import com.vehiclerental.util.AppClock;
 import com.vehiclerental.util.CostCalculator;
 import com.vehiclerental.util.DateRangeValidator;
@@ -447,6 +460,76 @@ public class BookingServiceImpl implements BookingService {
         notificationService.safeSend(customerId, "BOOKING_EXTENDED",
             "Booking #" + bookingId + " now runs until " + newReturn + ". New total: " + newCost + ".");
         return toResponse(loadOrThrow(bookingId));
+    }
+
+    // ============================================================
+    // Deleting a record
+    // ============================================================
+    /**
+     * An administrator can remove any booking record, with a reason, together
+     * with everything that hangs off it: the pick-up and return records, damage
+     * reports (and their insurance claims) from that rental, and the payment.
+     * Two things stop it:
+     *   - the car is out with the customer (ACTIVE_RENTAL): record the return first;
+     *   - a damage report from the rental is still under review, because that is
+     *     what keeps the car off the road until it is resolved.
+     * The audit trail keeps a line saying what was removed, by whom and why,
+     * including the payment's status and amount.
+     */
+    @Override
+    @Transactional
+    public void delete(int bookingId, int actorUserId, String reason) {
+        Booking b = loadOrThrow(bookingId);
+
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Deleting a booking requires a reason");
+        }
+        if (b.getStatus() == BookingStatus.ACTIVE_RENTAL) {
+            throw new InvalidStatusTransitionException(
+                "The vehicle is out with the customer. Record the return before deleting this booking.");
+        }
+
+        List<Handover> handovers = handoverDao.findByBooking(bookingId);
+        List<DamageReport> reports = new java.util.ArrayList<>();
+        for (Handover h : handovers) {
+            reports.addAll(damageReportDao.findByHandover(h.getHandoverId()));
+        }
+        for (DamageReport d : reports) {
+            if ("UNDER_REVIEW".equals(d.getStatus())) {
+                throw new InvalidStatusTransitionException(
+                    "Damage report #" + d.getEventId() + " from this rental is still under review. "
+                    + "Resolve it first, then delete the booking.");
+            }
+        }
+
+        // Children first, so nothing is left pointing at a row that is gone.
+        int claims = 0;
+        for (DamageReport d : reports) {
+            for (InsuranceClaim c : claimDao.findByDamageReport(d.getEventId())) {
+                claimDao.delete(c.getClaimId());
+                claims++;
+            }
+            damageReportDao.delete(d.getEventId());
+        }
+        handoverDao.deleteByBooking(bookingId);
+        String payment = paymentService.deleteForBooking(bookingId, actorUserId);
+        bookingDao.delete(bookingId);
+        availabilityService.refreshReservationStatus(b.getVehicleId());
+
+        auditService.record(ENTITY, bookingId, "DELETE", actorUserId,
+            "Deleted " + b.getStatus() + " booking (customer #" + b.getCustomerId() + ", vehicle #"
+            + b.getVehicleId() + ", " + b.getPickupDate() + " to " + b.getReturnDate() + "; final cost "
+            + (b.getFinalCost() != null ? b.getFinalCost() : b.getEstimatedCost())
+            + "); also removed: payment " + (payment == null ? "none" : payment) + ", "
+            + handovers.size() + " handover record(s), " + reports.size() + " damage report(s), "
+            + claims + " claim(s). Reason: " + reason.trim());
+
+        // Someone who was waiting for, or expecting, this rental should know it is gone.
+        if (b.getStatus() == BookingStatus.PENDING_APPROVAL || b.getStatus() == BookingStatus.APPROVED) {
+            notificationService.safeSend(b.getCustomerId(), "BOOKING_REMOVED",
+                "Your booking for " + b.getPickupDate() + " to " + b.getReturnDate()
+                + " was removed by the branch. " + reason.trim());
+        }
     }
 
     // ============================================================
