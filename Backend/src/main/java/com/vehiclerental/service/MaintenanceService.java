@@ -1,6 +1,7 @@
 package com.vehiclerental.service;
 
 import com.vehiclerental.dto.request.CreateMaintenanceRequest;
+import com.vehiclerental.dto.request.UpdateMaintenanceRequest;
 import com.vehiclerental.dto.response.MaintenanceResponse;
 
 import java.util.List;
@@ -10,6 +11,9 @@ public interface MaintenanceService {
     MaintenanceResponse create(int staffId, CreateMaintenanceRequest request);
 
     MaintenanceResponse findById(int eventId);
+
+    /** Edits a service record. What may change depends on its status. */
+    MaintenanceResponse update(int eventId, UpdateMaintenanceRequest request, int actorUserId);
 
     List<MaintenanceResponse> listAll();
 
