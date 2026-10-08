@@ -246,6 +246,7 @@ export const api = {
     noShow: (id, reason) => patch(`/api/bookings/${id}/no-show`, null, why(reason)),
     changeDates: (id, pickup, ret) => patch(`/api/bookings/${id}/dates`, { pickup, return: ret }),
     extend: (id, ret) => patch(`/api/bookings/${id}/extend`, { return: ret }),
+    remove: (id, reason) => del(`/api/bookings/${id}`, why(reason)),
   },
 
   handovers: {
@@ -260,6 +261,7 @@ export const api = {
     byVehicle: (vehicleId) => get(`/api/maintenance/vehicle/${vehicleId}`),
     reminders: (days = 30) => get('/api/maintenance/reminders', { days }),
     create: (payload) => post('/api/maintenance', payload),
+    update: (id, payload) => put(`/api/maintenance/${id}`, payload),
     setStatus: (id, status) => patch(`/api/maintenance/${id}/status`, { status }),
     start: (id) => patch(`/api/maintenance/${id}/status`, { status: 'IN_PROGRESS' }),
     complete: (id) => patch(`/api/maintenance/${id}/complete`),
