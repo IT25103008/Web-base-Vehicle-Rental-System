@@ -485,19 +485,26 @@ export function bookingActions(b) {
   const id = b.bookingId;
   const details = `<button class="icon-btn icon-btn--sm" data-booking="details" data-id="${id}" aria-label="Details" title="Details">${icon('doc', 16)}</button>`;
   const sheet = (kind) => `<button class="icon-btn icon-btn--sm" data-booking="sheet" data-kind="${kind}" data-id="${id}" aria-label="Print ${kind} sheet" title="Print ${kind} sheet">${icon('printer', 16)}</button>`;
+  // Bookings that never became a rental can be removed, by an administrator.
+  const remove = `<button class="icon-btn icon-btn--sm" data-booking="delete" data-id="${id}" aria-label="Delete booking" title="Delete this record">${icon('trash', 16)}</button>`;
   switch (b.status) {
     case 'PENDING_APPROVAL':
       return `<button class="btn btn--sm btn--outline" data-booking="reject" data-id="${id}">Reject</button>
-              <button class="btn btn--sm" data-booking="approve" data-id="${id}">Approve</button>${details}`;
+              <button class="btn btn--sm" data-booking="approve" data-id="${id}">Approve</button>${details}${isAdmin() ? remove : ''}`;
     case 'APPROVED': {
       // The customer never came: close it and keep one night (B2).
       const missed = b.pickupDate < isoDate();
       return `<button class="btn btn--sm" data-booking="pickup" data-id="${id}">${icon('key', 16)} Hand over</button>
               ${missed ? `<button class="btn btn--sm btn--outline" data-booking="noshow" data-id="${id}" title="The customer did not collect the car">No-show</button>` : ''}
-              <button class="icon-btn icon-btn--sm" data-booking="cancel" data-id="${id}" aria-label="Cancel booking" title="Cancel booking">${icon('close', 16)}</button>${sheet('pickup')}${details}`;
+              <button class="icon-btn icon-btn--sm" data-booking="cancel" data-id="${id}" aria-label="Cancel booking" title="Cancel booking">${icon('close', 16)}</button>${sheet('pickup')}${details}${isAdmin() ? remove : ''}`;
     }
     case 'ACTIVE_RENTAL':
       return `<button class="btn btn--sm btn--accent" data-booking="return" data-id="${id}">${icon('flag', 16)} Receive</button>${sheet('return')}${details}`;
+    case 'COMPLETED':
+    case 'CANCELLED':
+    case 'REJECTED':
+    case 'NO_SHOW':
+      return `${details}${isAdmin() ? remove : ''}`;
     default:
       return details;
   }
@@ -546,6 +553,20 @@ export async function handleBookingAction(btn, b, state) {
       });
       if (reason === null) return false;
       return runAction(null, () => api.bookings.noShow(b.bookingId, reason), `Booking #${b.bookingId} closed as a no-show`);
+    }
+    case 'delete': {
+      const pay = state.payments?.get(b.bookingId);
+      const reason = await promptDialog({
+        title: `Delete booking #${b.bookingId}?`,
+        text: `This permanently removes the ${humanize(b.status).toLowerCase()} booking for ${u?.fullName || 'the customer'} (${v?.model || 'vehicle'}, ${fmtDate(b.pickupDate)}) together with everything attached to it: its pick-up and return records, any resolved damage reports and insurance claims, and its payment${pay ? ` (${humanize(pay.status).toLowerCase()}, ${money(pay.amount)})` : ''}. The audit log keeps a note of what was removed. This cannot be undone.`,
+        label: 'Reason (kept in the audit log)',
+        placeholder: 'e.g. Test booking, or entered by mistake',
+        confirmLabel: 'Delete booking',
+        tone: 'danger',
+        required: true,
+      });
+      if (!reason) return false;
+      return runAction(null, () => api.bookings.remove(b.bookingId, reason), `Booking #${b.bookingId} deleted`);
     }
     case 'sheet': {
       // The full record (phone, licence number) is an audited lookup.
