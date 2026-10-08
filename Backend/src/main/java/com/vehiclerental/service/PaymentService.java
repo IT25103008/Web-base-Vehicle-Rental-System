@@ -44,6 +44,13 @@ public interface PaymentService {
     /** True when the booking has been paid in full. */
     boolean isSettled(int bookingId);
 
+    /**
+     * Removes the payment of a booking that is being deleted, in whatever state it
+     * is in. The audit trail keeps what it was (status and amount). Returns a short
+     * description such as "PAID 12000.00", or null when the booking had no payment.
+     */
+    String deleteForBooking(int bookingId, int actorUserId);
+
     /** The booking total changed mid-way (an extension): follow it, re-opening a paid payment for the difference. */
     void adjustTotal(int bookingId, BigDecimal newTotal, Integer actorUserId, String reason);
 
