@@ -4,12 +4,12 @@ import com.vehiclerental.dao.AbstractJdbcDao;
 import com.vehiclerental.dao.PaymentDao;
 import com.vehiclerental.dao.impl.rowmapper.PaymentRowMapper;
 import com.vehiclerental.model.Payment;
-import com.vehiclerental.util.AppClock;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import com.vehiclerental.util.AppClock;
 import java.util.List;
 import java.util.Optional;
 
@@ -131,5 +131,10 @@ public class PaymentDaoImpl extends AbstractJdbcDao<Payment, Integer> implements
             params.add(id);
             params.add(id);
         }
+    }
+
+    @Override
+    public void deleteByBooking(int bookingId) {
+        executeUpdate("DELETE FROM payments WHERE booking_id = ?", bookingId);
     }
 }
