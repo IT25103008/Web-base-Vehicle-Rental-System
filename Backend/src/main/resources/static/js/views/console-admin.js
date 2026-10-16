@@ -35,21 +35,21 @@ function licenceCell(u) {
     return `<b style="color:var(--danger)">Expired</b><small>${esc(u.licenseExpiryDate)}</small>`;
   }
   return u.licenseVerified
-      ? `<b>Verified</b><small>${u.licenseExpiryDate ? `valid to ${esc(u.licenseExpiryDate)}` : ''}</small>`
-      : '<b style="color:var(--warn-ink,#8A5200)">Not verified</b><small>cannot book yet</small>';
+    ? `<b>Verified</b><small>${u.licenseExpiryDate ? `valid to ${esc(u.licenseExpiryDate)}` : ''}</small>`
+    : '<b style="color:var(--warn-ink,#8A5200)">Not verified</b><small>cannot book yet</small>';
 }
 
 function peopleActions(u, admin) {
   const parts = [];
   if (u.role === 'CUSTOMER') {
     parts.push(u.licenseVerified
-        ? `<button class="btn btn--sm btn--text" data-people="unverify" data-id="${u.userId}">Withdraw</button>`
-        : `<button class="btn btn--sm btn--tonal" data-people="verify" data-id="${u.userId}">${icon('shield', 16)} Verify licence</button>`);
+      ? `<button class="btn btn--sm btn--text" data-people="unverify" data-id="${u.userId}">Withdraw</button>`
+      : `<button class="btn btn--sm btn--tonal" data-people="verify" data-id="${u.userId}">${icon('shield', 16)} Verify licence</button>`);
   }
   if (admin && u.userId !== store.user?.userId) {
     parts.push(u.active === false
-        ? `<button class="btn btn--sm btn--success" data-people="enable" data-id="${u.userId}">Enable</button>`
-        : `<button class="btn btn--sm btn--outline" data-people="disable" data-id="${u.userId}">Disable</button>`);
+      ? `<button class="btn btn--sm btn--success" data-people="enable" data-id="${u.userId}">Enable</button>`
+      : `<button class="btn btn--sm btn--outline" data-people="disable" data-id="${u.userId}">Disable</button>`);
   }
   return parts.join('');
 }
@@ -60,13 +60,13 @@ export async function renderPeople({ el, query }) {
 
   el.innerHTML = `
     ${consoleHead({
-    eyebrow: 'Accounts', title: 'People',
-    text: 'Customers, branch staff and administrators.',
-    actions: admin
+      eyebrow: 'Accounts', title: 'People',
+      text: 'Customers, branch staff and administrators.',
+      actions: admin
         ? `<button class="btn btn--tonal" data-people="add-admin">${icon('shield', 18)} Add administrator</button>
            <button class="btn" data-people="add">${icon('plus', 18)} Add staff member</button>${exportButtons()}`
         : exportButtons(),
-  })}
+    })}
     <div class="toolbar"><div id="tabs"></div>${searchBox('Search name or email')}</div>
     <div id="list">${skeletons(1, '')}</div>
     <div id="pager"></div>`;
@@ -87,14 +87,14 @@ export async function renderPeople({ el, query }) {
     const label = ROLE_TABS.find(([k]) => k === state.tab)?.[1] || 'Everyone';
     if (kind === 'csv') {
       downloadCsv(`people-${state.tab.toLowerCase()}`,
-          ['ID', 'Name', 'Email', 'Role', 'Active', 'Licence verified', 'Licence expiry'],
-          all.map((u) => [u.userId, u.fullName, u.email, u.role, u.active !== false ? 'yes' : 'no',
-            u.role === 'CUSTOMER' ? (u.licenseVerified ? 'yes' : 'no') : '', u.licenseExpiryDate || '']));
+        ['ID', 'Name', 'Email', 'Role', 'Active', 'Licence verified', 'Licence expiry'],
+        all.map((u) => [u.userId, u.fullName, u.email, u.role, u.active !== false ? 'yes' : 'no',
+          u.role === 'CUSTOMER' ? (u.licenseVerified ? 'yes' : 'no') : '', u.licenseExpiryDate || '']));
     } else {
       printTable(`People · ${label}`, state.text ? `Matching "${state.text}"` : '',
-          ['ID', 'Name', 'Email', 'Role', 'Licence'],
-          all.map((u) => [`#${u.userId}`, `${esc(u.fullName)}${u.active === false ? ' (disabled)' : ''}`, esc(u.email), esc(u.role),
-            u.role === 'CUSTOMER' ? (u.licenseVerified ? 'Verified' : 'Not verified') : '']));
+        ['ID', 'Name', 'Email', 'Role', 'Licence'],
+        all.map((u) => [`#${u.userId}`, `${esc(u.fullName)}${u.active === false ? ' (disabled)' : ''}`, esc(u.email), esc(u.role),
+          u.role === 'CUSTOMER' ? (u.licenseVerified ? 'Verified' : 'Not verified') : '']));
     }
   }
 
@@ -147,8 +147,8 @@ export async function renderPeople({ el, query }) {
       const ok = await confirmDialog({
         title: 'Verify driving licence?',
         text: expired
-            ? `This licence expired on ${full.licenseExpiryDate}. It cannot be verified — ask the customer to update their details first.`
-            : `Check ${full?.fullName || 'this customer'}’s physical licence against the number on file: ${full?.drivingLicenseNumber || 'not on file'}${full?.licenseExpiryDate ? `, valid until ${full.licenseExpiryDate}` : ''}. Confirm only if the card matches and is valid.`,
+          ? `This licence expired on ${full.licenseExpiryDate}. It cannot be verified — ask the customer to update their details first.`
+          : `Check ${full?.fullName || 'this customer'}’s physical licence against the number on file: ${full?.drivingLicenseNumber || 'not on file'}${full?.licenseExpiryDate ? `, valid until ${full.licenseExpiryDate}` : ''}. Confirm only if the card matches and is valid.`,
         confirmLabel: 'Mark verified',
       });
       if (ok && await runAction(null, () => api.users.verifyLicense(target.userId), 'Licence verified')) await load();
@@ -244,10 +244,10 @@ export async function renderBranchAdmin({ el }) {
 
   el.innerHTML = `
     ${consoleHead({
-    eyebrow: 'Locations', title: 'Branches',
-    text: 'Opening hours, contact details and which branches take bookings.',
-    actions: `<button class="btn" data-branch="add">${icon('plus', 18)} New branch</button>`,
-  })}
+      eyebrow: 'Locations', title: 'Branches',
+      text: 'Opening hours, contact details and which branches take bookings.',
+      actions: `<button class="btn" data-branch="add">${icon('plus', 18)} New branch</button>`,
+    })}
     <div id="grid">${skeletons(3, 'branch-grid')}</div>`;
 
   async function load() {
@@ -279,8 +279,8 @@ export async function renderBranchAdmin({ el }) {
         <footer>
           <button class="btn btn--sm btn--tonal" data-branch="edit" data-id="${b.branchId}">${icon('edit', 16)} Edit</button>
           ${b.status === 'ACTIVE'
-          ? `<button class="btn btn--sm btn--text" data-branch="deactivate" data-id="${b.branchId}">Deactivate</button>`
-          : `<button class="btn btn--sm btn--text" data-branch="activate" data-id="${b.branchId}">Reactivate</button>`}
+            ? `<button class="btn btn--sm btn--text" data-branch="deactivate" data-id="${b.branchId}">Deactivate</button>`
+            : `<button class="btn btn--sm btn--text" data-branch="activate" data-id="${b.branchId}">Reactivate</button>`}
           <button class="icon-btn icon-btn--sm" data-branch="delete" data-id="${b.branchId}" aria-label="Delete" title="Delete" style="margin-left:auto">${icon('trash', 16)}</button>
         </footer>
       </article>`;
@@ -351,10 +351,10 @@ export async function renderTransfers({ el }) {
 
   el.innerHTML = `
     ${consoleHead({
-    eyebrow: 'Logistics', title: 'Vehicle transfers',
-    text: 'Move vehicles between branches. Completing a transfer changes the vehicle’s home branch.',
-    actions: `<button class="btn" data-transfer="add">${icon('swap', 18)} New transfer</button>`,
-  })}
+      eyebrow: 'Logistics', title: 'Vehicle transfers',
+      text: 'Move vehicles between branches. Completing a transfer changes the vehicle’s home branch.',
+      actions: `<button class="btn" data-transfer="add">${icon('swap', 18)} New transfer</button>`,
+    })}
     <div class="toolbar"><div id="tabs"></div></div>
     <div id="list">${skeletons(1, '')}</div>`;
 
@@ -387,9 +387,9 @@ export async function renderTransfers({ el }) {
         cell('Route', `<b style="display:flex;align-items:center;gap:8px">${esc(branchName(t.fromBranchId))} ${icon('arrowRight', 16)} ${esc(branchName(t.toBranchId))}</b><small>${esc(t.reason || 'No reason given')}</small>`, 'cell--wide'),
         cell('Date', `<b>${fmtDate(t.transferDate)}</b>`),
         actionsCell(`${statusChip(t.status)}${t.status === 'PENDING'
-            ? `<button class="btn btn--sm btn--text" data-transfer="cancel" data-id="${t.transferId}">Cancel</button>
+          ? `<button class="btn btn--sm btn--text" data-transfer="cancel" data-id="${t.transferId}">Cancel</button>
              <button class="btn btn--sm" data-transfer="complete" data-id="${t.transferId}">${icon('check', 16)} Complete</button>`
-            : ''}<button class="icon-btn icon-btn--sm" data-transfer="delete" data-id="${t.transferId}" aria-label="Delete transfer" title="Delete this record">${icon('trash', 16)}</button>`),
+          : ''}<button class="icon-btn icon-btn--sm" data-transfer="delete" data-id="${t.transferId}" aria-label="Delete transfer" title="Delete this record">${icon('trash', 16)}</button>`),
       ], i)),
     });
   }
@@ -441,10 +441,10 @@ export async function renderTransfers({ el }) {
       const t = state.transfers.find((x) => x.transferId === id);
       const car = state.fleet.get(t?.vehicleId);
       const what = t?.status === 'COMPLETED'
-          ? 'The vehicle stays at its current branch; only the record is removed.'
-          : t?.status === 'PENDING'
-              ? 'The move is called off, so the vehicle stays where it is and bookings for those dates are allowed again.'
-              : 'Only the record is removed.';
+        ? 'The vehicle stays at its current branch; only the record is removed.'
+        : t?.status === 'PENDING'
+          ? 'The move is called off, so the vehicle stays where it is and bookings for those dates are allowed again.'
+          : 'Only the record is removed.';
       const reason = await promptDialog({
         title: `Delete transfer #${id}?`,
         text: `This permanently removes the ${(t?.status || '').toLowerCase()} transfer of ${car?.model || 'the vehicle'}. ${what} The audit log keeps a note of it. This cannot be undone.`,
@@ -474,10 +474,10 @@ export async function renderInsurance({ el, query }) {
 
   el.innerHTML = `
     ${consoleHead({
-    eyebrow: 'Cover', title: 'Insurance policies',
-    text: 'A vehicle with no active cover for the requested dates cannot be booked, so lapsed policies take cars off the market.',
-    actions: admin ? `<button class="btn" data-policy="add">${icon('plus', 18)} Add policy</button>` : '',
-  })}
+      eyebrow: 'Cover', title: 'Insurance policies',
+      text: 'A vehicle with no active cover for the requested dates cannot be booked, so lapsed policies take cars off the market.',
+      actions: admin ? `<button class="btn" data-policy="add">${icon('plus', 18)} Add policy</button>` : '',
+    })}
     <div class="toolbar"><div id="tabs"></div></div>
     <div id="list">${skeletons(1, '')}</div>`;
 
