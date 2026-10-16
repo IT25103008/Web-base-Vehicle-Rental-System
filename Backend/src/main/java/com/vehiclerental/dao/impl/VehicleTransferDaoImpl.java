@@ -13,7 +13,7 @@ import java.util.Optional;
 
 @Repository
 public class VehicleTransferDaoImpl extends AbstractJdbcDao<VehicleTransfer, Integer>
-                                    implements VehicleTransferDao {
+        implements VehicleTransferDao {
 
     private final VehicleTransferRowMapper mapper = new VehicleTransferRowMapper();
 
@@ -24,10 +24,10 @@ public class VehicleTransferDaoImpl extends AbstractJdbcDao<VehicleTransfer, Int
     @Override
     public VehicleTransfer save(VehicleTransfer t) {
         String sql = "INSERT INTO vehicle_transfers (vehicle_id, from_branch_id, to_branch_id, " +
-                     "transfer_date, status, reason) VALUES (?, ?, ?, ?, ?, ?)";
+                "transfer_date, status, reason) VALUES (?, ?, ?, ?, ?, ?)";
         int id = executeInsertReturnId(sql,
-            t.getVehicleId(), t.getFromBranchId(), t.getToBranchId(),
-            Date.valueOf(t.getTransferDate()), t.getStatus().name(), t.getReason());
+                t.getVehicleId(), t.getFromBranchId(), t.getToBranchId(),
+                Date.valueOf(t.getTransferDate()), t.getStatus().name(), t.getReason());
         t.setTransferId(id);
         return t;
     }
@@ -59,7 +59,12 @@ public class VehicleTransferDaoImpl extends AbstractJdbcDao<VehicleTransfer, Int
     @Override
     public List<VehicleTransfer> findPendingByVehicle(int vehicleId) {
         String sql = "SELECT * FROM vehicle_transfers WHERE vehicle_id = ? AND status = 'PENDING' " +
-                     "ORDER BY transfer_date";
+                "ORDER BY transfer_date";
         return queryList(sql, mapper, vehicleId);
+    }
+
+    @Override
+    public void delete(int transferId) {
+        executeUpdate("DELETE FROM vehicle_transfers WHERE transfer_id = ?", transferId);
     }
 }

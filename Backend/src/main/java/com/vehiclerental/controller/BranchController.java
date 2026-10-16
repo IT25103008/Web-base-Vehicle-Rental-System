@@ -1,18 +1,20 @@
 package com.vehiclerental.controller;
 
 import com.vehiclerental.dto.request.BranchRequest;
+import com.vehiclerental.dto.request.ReasonRequest;
 import com.vehiclerental.dto.request.TransferRequest;
 import com.vehiclerental.model.Branch;
 import com.vehiclerental.model.VehicleTransfer;
-import com.vehiclerental.security.AppUserPrincipal;
 import com.vehiclerental.service.BranchService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import com.vehiclerental.security.AppUserPrincipal;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/branches")
@@ -23,6 +25,8 @@ public class BranchController {
     public BranchController(BranchService branchService) {
         this.branchService = branchService;
     }
+
+    // ==================== Branches ====================
 
     // Public
     @GetMapping
@@ -74,14 +78,14 @@ public class BranchController {
         return ResponseEntity.ok("Branch deleted");
     }
 
-    // Vehicle transfers
+    // ==================== Vehicle transfers ====================
 
     @PostMapping("/transfers")
     @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<VehicleTransfer> requestTransfer(@Valid @RequestBody TransferRequest r,
                                                            @AuthenticationPrincipal AppUserPrincipal me) {
         VehicleTransfer t = branchService.requestTransfer(
-            r.getVehicleId(), r.getToBranchId(), r.getTransferDate(), r.getReason(), me.getUserId());
+                r.getVehicleId(), r.getToBranchId(), r.getTransferDate(), r.getReason(), me.getUserId());
         return ResponseEntity.ok(t);
     }
 
@@ -111,5 +115,16 @@ public class BranchController {
                                                  @AuthenticationPrincipal AppUserPrincipal me) {
         branchService.cancelTransfer(id, me.getUserId());
         return ResponseEntity.ok("Transfer cancelled");
+    }
+
+    /** Permanently removes a transfer record. Administrators only; a reason is required. */
+    @DeleteMapping("/transfers/{id}")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    public Map<String, Object> deleteTransfer(@PathVariable int id,
+                                              @RequestParam(required = false) String reason,
+                                              @Valid @RequestBody(required = false) ReasonRequest body,
+                                              @AuthenticationPrincipal AppUserPrincipal me) {
+        branchService.deleteTransfer(id, me.getUserId(), BookingController.reasonOf(body, reason));
+        return Map.of("deleted", id);
     }
 }

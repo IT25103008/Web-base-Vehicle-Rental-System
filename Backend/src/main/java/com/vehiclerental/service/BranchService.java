@@ -31,6 +31,13 @@ public interface BranchService {
 
     void completeTransfer(int transferId, int actorUserId);
 
+    /**
+     * Permanently removes a transfer record, whatever its status, with a reason
+     * kept in the audit trail. Deleting a pending transfer also lifts the block it
+     * put on bookings; deleting a completed one does NOT move the vehicle back.
+     */
+    void deleteTransfer(int transferId, int actorUserId, String reason);
+
     List<VehicleTransfer> listPendingTransfers();
 
     List<VehicleTransfer> listAllTransfers();

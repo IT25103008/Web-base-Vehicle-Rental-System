@@ -1,7 +1,6 @@
 package com.vehiclerental.dao;
 
 import com.vehiclerental.model.VehicleTransfer;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -13,4 +12,5 @@ public interface VehicleTransferDao {
     List<VehicleTransfer> findPending();
     List<VehicleTransfer> findPendingByVehicle(int vehicleId);
     void updateStatus(int transferId, String status);
+    void delete(int transferId);
 }

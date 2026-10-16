@@ -1,320 +1,347 @@
 // ============================================================
-// API client — one function per backend endpoint.
-// The frontend is served by Spring Boot itself, so every call is
-// same-origin and the JSESSIONID cookie is sent automatically.
-//
-// Every request that changes something also carries the CSRF token:
-// the server hands it over in the XSRF-TOKEN cookie, and it is echoed
-// back here in the X-XSRF-TOKEN header. A page on another site can make
-// the browser send the cookie, but it cannot read it - so it cannot
-// forge the header.
+// App shell: hash router, role guards, and the two-row chrome —
+// a thin black global bar over a frosted contextual bar, with a
+// glass rail on console screens.
 // ============================================================
+import { api } from './api.js';
+import { store, loadUser, refreshUnread, invalidate, isStaff, isAdmin, isCustomer } from './store.js';
+import { esc, icon, initials, toast, errorState, humanize } from './ui.js';
+import { renderExplore, renderVehicle, renderBranches, renderLogin, renderRegister } from './views/public.js';
+import { renderTrips, renderNotifications } from './views/customer.js';
+import { renderSaved, renderCompare, renderTrip, renderAccount, renderNotFound } from './views/extras.js';
+import { renderVehicles } from './views/vehicles.js';
+import { renderForgot, renderReset, renderVerify, renderPrivacy } from './views/auth-extra.js';
+import { renderTimeline } from './views/console-timeline.js';
+import { bindPrefs, saved as savedCars, syncSaved } from './prefs.js';
+import { bindSpotlight, openSpotlight } from './spotlight.js';
+import { bindTray } from './tray.js';
+import { renderOverview, renderBookings, renderHandovers, renderPayments } from './views/console.js';
+import { renderFleet, renderMaintenance, renderDamage, renderClaims } from './views/console-ops.js';
+import { renderPeople, renderBranchAdmin, renderTransfers, renderInsurance } from './views/console-admin.js';
 
-export class ApiError extends Error {
-  constructor(status, message, body) {
-    super(message);
-    this.status = status;
-    this.body = body;
-  }
+const STAFF = ['STAFF', 'ADMINISTRATOR'];
+const ADMIN = ['ADMINISTRATOR'];
+
+const routes = [
+  { path: 'explore', view: renderExplore, title: 'Collection', sub: 'Luxury vehicle rental' },
+  { path: 'vehicle/:id', view: renderVehicle, nav: 'explore', title: 'Collection', sub: 'Vehicle detail' },
+  { path: 'vehicles', view: renderVehicles, title: 'Vehicles', sub: 'The whole fleet' },
+  { path: 'branches', view: renderBranches, title: 'Branches', sub: 'Where to collect' },
+  { path: 'login', view: renderLogin, guest: true, title: 'Sign in', sub: 'Welcome back' },
+  { path: 'register', view: renderRegister, guest: true, title: 'Create account', sub: 'New customer' },
+  { path: 'forgot', view: renderForgot, guest: true, title: 'Password help', sub: 'Reset your password' },
+  { path: 'reset', view: renderReset, title: 'Password help', sub: 'Choose a new password' },
+  { path: 'verify', view: renderVerify, title: 'Your account', sub: 'Confirm your email' },
+  { path: 'privacy', view: renderPrivacy, title: 'Privacy', sub: 'How we use your details' },
+  { path: 'trips', view: renderTrips, roles: ['CUSTOMER'], title: 'My trips', sub: 'Requests and history' },
+  { path: 'notifications', view: renderNotifications, auth: true, title: 'Notifications', sub: 'Your updates' },
+  { path: 'saved', view: renderSaved, title: 'Saved', sub: 'Your shortlist' },
+  { path: 'compare', view: renderCompare, nav: 'saved', title: 'Compare', sub: 'Side by side' },
+  { path: 'trip/:id', view: renderTrip, nav: 'trips', roles: ['CUSTOMER'], title: 'Trip', sub: 'Trip detail' },
+  { path: 'account', view: renderAccount, auth: true, title: 'Account', sub: 'Your details' },
+
+  { path: 'console', view: renderOverview, roles: STAFF, console: true, title: 'Console', sub: 'Overview' },
+  { path: 'console/timeline', view: renderTimeline, roles: STAFF, console: true, title: 'Console', sub: 'Fleet timeline' },
+  { path: 'console/bookings', view: renderBookings, roles: STAFF, console: true, title: 'Console', sub: 'Bookings' },
+  { path: 'console/handovers', view: renderHandovers, roles: STAFF, console: true, title: 'Console', sub: 'Handovers' },
+  { path: 'console/payments', view: renderPayments, roles: STAFF, console: true, title: 'Console', sub: 'Payments' },
+  { path: 'console/fleet', view: renderFleet, roles: STAFF, console: true, title: 'Console', sub: 'Fleet' },
+  { path: 'console/maintenance', view: renderMaintenance, roles: STAFF, console: true, title: 'Console', sub: 'Service' },
+  { path: 'console/damage', view: renderDamage, roles: STAFF, console: true, title: 'Console', sub: 'Damage' },
+  { path: 'console/insurance', view: renderInsurance, roles: STAFF, console: true, title: 'Console', sub: 'Insurance' },
+  { path: 'console/people', view: renderPeople, roles: STAFF, console: true, title: 'Console', sub: 'People' },
+  { path: 'console/claims', view: renderClaims, roles: ADMIN, console: true, title: 'Console', sub: 'Claims' },
+  { path: 'console/branches', view: renderBranchAdmin, roles: ADMIN, console: true, title: 'Console', sub: 'Branches' },
+  { path: 'console/transfers', view: renderTransfers, roles: ADMIN, console: true, title: 'Console', sub: 'Transfers' },
+];
+
+const RAIL = [
+  [
+    ['console', 'Overview', 'grid'],
+    ['console/bookings', 'Bookings', 'ticket'],
+    ['console/timeline', 'Timeline', 'calendar'],
+    ['console/handovers', 'Handovers', 'key'],
+    ['console/payments', 'Payments', 'wallet'],
+  ],
+  [
+    ['console/fleet', 'Fleet', 'car'],
+    ['console/maintenance', 'Service', 'wrench'],
+    ['console/damage', 'Damage', 'shieldAlert'],
+    ['console/insurance', 'Insurance', 'shield'],
+    ['console/people', 'People', 'users'],
+  ],
+  [
+    ['console/claims', 'Claims', 'receipt', true],
+    ['console/branches', 'Branches', 'building', true],
+    ['console/transfers', 'Transfers', 'swap', true],
+  ],
+];
+
+// ---------- routing ----------
+function parseHash() {
+  const raw = window.location.hash.replace(/^#/, '') || '/explore';
+  const [pathPart, qs] = raw.split('?');
+  return {
+    path: pathPart.replace(/^\/+|\/+$/g, '') || 'explore',
+    query: Object.fromEntries(new URLSearchParams(qs || '')),
+  };
 }
 
-const FALLBACK_MESSAGES = {
-  0: 'Cannot reach the server. Is the backend running?',
-  400: 'The request was not valid.',
-  401: 'Please sign in to continue.',
-  403: "You don't have permission for this action.",
-  404: 'We could not find what you were looking for.',
-  409: 'This conflicts with existing data.',
-  413: 'That file is too large.',
-  500: 'Something went wrong on the server.',
-  503: 'The service is temporarily unavailable.',
-};
-
-const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
-
-function buildUrl(path, query) {
-  const url = new URL(path, window.location.origin);
-  if (query) {
-    Object.entries(query).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
+function matchRoute(path) {
+  const parts = path.split('/');
+  for (const route of routes) {
+    const rParts = route.path.split('/');
+    if (rParts.length !== parts.length) continue;
+    const params = {};
+    const ok = rParts.every((seg, i) => {
+      if (seg.startsWith(':')) { params[seg.slice(1)] = decodeURIComponent(parts[i]); return true; }
+      return seg === parts[i];
     });
+    if (ok) return { route, params };
   }
-  return url;
+  return null;
 }
 
-function csrfToken() {
-  const m = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
+export function navigate(path) {
+  const target = `#${path.startsWith('/') ? path : `/${path}`}`;
+  if (window.location.hash === target) render();
+  else window.location.hash = target;
 }
 
-/** Makes sure the CSRF cookie exists (any GET issues it). */
-async function ensureCsrf() {
-  if (csrfToken()) return;
-  try { await fetch(buildUrl('/api/auth/me'), { credentials: 'same-origin' }); } catch { /* offline */ }
+export function homeFor() {
+  if (isStaff()) return '/console';
+  return '/explore';
 }
 
-async function request(method, path, { body, query } = {}, retried = false) {
-  if (!SAFE.has(method)) await ensureCsrf();
-  const token = csrfToken();
-  let res;
+let renderToken = 0;
+let lastPath = null;
+
+async function render() {
+  const token = ++renderToken;
+  const { path, query } = parseHash();
+  const match = matchRoute(path);
+  const { route, params } = match || { route: { path: '*', view: renderNotFound, title: 'Not found' }, params: {} };
+
+  // A dialog left open must not follow the user to another page.
+  document.querySelector('#dialog[open] [data-close]')?.click();
+
+  if (route.guest && store.user) { navigate(homeFor()); return; }
+  if ((route.auth || route.roles) && !store.user) {
+    navigate(`/login?next=${encodeURIComponent(`/${path}`)}`);
+    return;
+  }
+  if (route.roles && !route.roles.includes(store.user.role)) { navigate(homeFor()); return; }
+
+  renderShell(route, path);
+  if (path !== lastPath) window.scrollTo({ top: 0 });
+  lastPath = path;
+
+  const el = document.getElementById('view');
+  const ctx = {
+    el,
+    params,
+    query,
+    path,
+    navigate,
+    isCurrent: () => token === renderToken,
+    rerender: render,
+  };
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="retry"]')) render();
+  });
+
   try {
-    res = await fetch(buildUrl(path, query), {
-      method,
-      credentials: 'same-origin',
-      headers: {
-        Accept: 'application/json, text/plain',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-        ...(!SAFE.has(method) && token ? { 'X-XSRF-TOKEN': token } : {}),
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new ApiError(0, FALLBACK_MESSAGES[0]);
-  }
-
-  const text = await res.text();
-  let data = text;
-  if (text) {
-    try { data = JSON.parse(text); } catch { /* plain-text body */ }
-  } else {
-    data = null;
-  }
-
-  if (!res.ok) {
-    const message = (data && typeof data === 'object' && data.message)
-      || FALLBACK_MESSAGES[res.status]
-      || `Request failed (${res.status})`;
-    // A token that went stale (the session changed under us): fetch a fresh
-    // one and try once more before giving up.
-    if (res.status === 403 && !retried && !SAFE.has(method) && /security token/i.test(message)) {
-      document.cookie = 'XSRF-TOKEN=; Max-Age=0; path=/';
-      await ensureCsrf();
-      return request(method, path, { body, query }, true);
+    await route.view(ctx);
+  } catch (err) {
+    if (token === renderToken) {
+      el.innerHTML = `<div class="${route.console ? '' : 'section'}">${errorState(err)}</div>`;
     }
-    if (res.status === 401 && !path.startsWith('/api/auth/')) {
-      window.dispatchEvent(new CustomEvent('auth:expired'));
-    }
-    throw new ApiError(res.status, message, data);
   }
-  return data;
 }
 
-/**
- * Multipart upload. The Content-Type header is deliberately left unset: the
- * browser has to add it itself so it can include the multipart boundary.
- */
-async function upload(path, file, field = 'file') {
-  await ensureCsrf();
-  const form = new FormData();
-  form.append(field, file);
-  const token = csrfToken();
-  let res;
-  try {
-    res = await fetch(buildUrl(path), {
-      method: 'POST', credentials: 'same-origin', body: form,
-      headers: token ? { 'X-XSRF-TOKEN': token } : {},
-    });
-  } catch {
-    throw new ApiError(0, FALLBACK_MESSAGES[0]);
-  }
-  const text = await res.text();
-  let data = text || null;
-  if (text) { try { data = JSON.parse(text); } catch { /* plain-text body */ } }
-  if (!res.ok) {
-    // A 404 here means the path reached no controller. The pages are read from
-    // disk on every request but the endpoints are fixed when the server starts,
-    // so a server left running across a rebuild serves the new screens with the
-    // old API. Saying that is far more use than "not found".
-    const message = res.status === 404
-      ? 'The server has no upload endpoint. If the code was rebuilt while it was running, restart it — a running server keeps its old endpoints but still serves the new pages.'
-      : (data && typeof data === 'object' && data.message)
-        || FALLBACK_MESSAGES[res.status]
-        || `Upload failed (${res.status})`;
-    if (res.status === 401) window.dispatchEvent(new CustomEvent('auth:expired'));
-    throw new ApiError(res.status, message, data);
-  }
-  return data;
+// ---------- shell ----------
+function subLink(href, label, active, count) {
+  return `<a class="subnav__link${active ? ' is-active' : ''}" href="#/${href}"${active ? ' aria-current="page"' : ''}>${esc(label)}${count !== undefined ? `<span class="subnav__count" data-count="${esc(href)}"${count ? '' : ' hidden'}>${count}</span>` : ''}</a>`;
 }
 
-const get = (path, query) => request('GET', path, { query });
-const post = (path, body, query) => request('POST', path, { body, query });
-const put = (path, body) => request('PUT', path, { body });
-const patch = (path, query, body) => request('PATCH', path, { query, body });
-const del = (path, body) => request('DELETE', path, { body });
-/** Reasons go in the request body, never the URL (they would land in logs and history). */
-const why = (reason) => ({ reason: reason || null });
+function renderShell(route, path) {
+  const section = route.nav || path.split('/')[0];
+  const user = store.user;
 
-export const api = {
-  auth: {
-    me: () => get('/api/auth/me'),
-    login: (email, password) => post('/api/auth/login', { email, password }),
-    loginCode: (code) => post('/api/auth/login/2fa', { code }),
-    register: (payload) => post('/api/auth/register', payload),
-    logout: () => post('/api/auth/logout'),
-    forgotPassword: (email) => post('/api/auth/forgot-password', { email }),
-    resetPassword: (token, password) => post('/api/auth/reset-password', { token, password }),
-    verifyEmail: (token) => post('/api/auth/verify-email', { token }),
-    twoFactorSetup: () => post('/api/auth/2fa/setup'),
-    twoFactorEnable: (code) => post('/api/auth/2fa/enable', { code }),
-    twoFactorDisable: (password) => post('/api/auth/2fa/disable', { password }),
-  },
+  const links = [
+    subLink('explore', 'Collection', section === 'explore'),
+    subLink('vehicles', 'Vehicles', section === 'vehicles'),
+    subLink('branches', 'Branches', section === 'branches'),
+    isStaff() ? '' : subLink('saved', 'Saved', section === 'saved' || section === 'compare', savedCars.list().length),
+    isCustomer() ? subLink('trips', 'My trips', section === 'trips') : '',
+    isStaff() ? subLink('console', isAdmin() ? 'Admin console' : 'Staff console', section === 'console') : '',
+    user ? subLink('notifications', 'Notifications', section === 'notifications') : '',
+  ].join('');
 
-  // The signed-in person's own account.
-  me: {
-    get: () => get('/api/users/me'),
-    update: (payload) => put('/api/users/me', payload),
-    changePassword: (currentPassword, newPassword) => patch('/api/users/me/password', null, { currentPassword, newPassword }),
-    sessions: () => get('/api/users/me/sessions'),
-    endOtherSessions: () => post('/api/users/me/sessions/end-others'),
-    resendVerification: () => post('/api/users/me/verification-email'),
-    exportData: () => get('/api/users/me/export'),
-    erase: (password) => del('/api/users/me', { password }),
-    favourites: () => get('/api/users/me/favourites'),
-    addFavourite: (vehicleId) => put(`/api/users/me/favourites/${vehicleId}`),
-    removeFavourite: (vehicleId) => del(`/api/users/me/favourites/${vehicleId}`),
-    mergeFavourites: (ids) => post('/api/users/me/favourites/merge', ids),
-    preferences: () => get('/api/users/me/notification-preferences'),
-    savePreferences: (prefs) => put('/api/users/me/notification-preferences', prefs),
-  },
+  const actions = user
+      ? `<a class="icon-btn" href="#/notifications" aria-label="Notifications" id="bell">
+         ${icon('bell', 18)}<span class="badge" id="bell-badge" hidden></span>
+       </a>
+       <div class="account">
+         <button class="account__btn" id="account-btn" aria-haspopup="menu" aria-expanded="false">
+           <span class="avatar">${esc(initials(user.fullName))}</span>
+           <span class="account__name">${esc(user.fullName)}</span>
+           ${icon('chevronDown', 14)}
+         </button>
+         <div class="menu" id="account-menu" role="menu" hidden>
+           <div class="menu__head">
+             <span class="avatar avatar--lg">${esc(initials(user.fullName))}</span>
+             <div><b>${esc(user.fullName)}</b><span>${esc(user.email)}</span></div>
+           </div>
+           <a class="menu__item" href="#/account" role="menuitem">${icon('user')} Account</a>
+           ${isCustomer() ? `<a class="menu__item" href="#/trips" role="menuitem">${icon('route')} My trips</a>` : ''}
+           ${isStaff() ? `<a class="menu__item" href="#/console" role="menuitem">${icon('grid')} ${isAdmin() ? 'Admin console' : 'Staff console'}</a>` : ''}
+           <a class="menu__item" href="#/notifications" role="menuitem">${icon('bell')} Notifications</a>
+           <div class="divider" style="margin:6px 8px"></div>
+           <button class="menu__item" id="logout-btn" role="menuitem">${icon('logout')} Sign out</button>
+         </div>
+       </div>`
+      : `<a class="btn btn--outline btn--sm" href="#/register">Create account</a>
+       <a class="btn btn--sm" href="#/login">Sign in</a>`;
 
-  users: {
-    list: (role) => get('/api/users', { role }),
-    page: (query) => get('/api/users/page', query),
-    get: (id) => get(`/api/users/${id}`),
-    createStaff: (payload) => post('/api/users/staff', payload),
-    createAdministrator: (payload) => post('/api/users/administrators', payload),
-    verifyLicense: (id) => patch(`/api/users/${id}/verify-license`),
-    unverifyLicense: (id, reason) => patch(`/api/users/${id}/unverify-license`, null, why(reason)),
-    disable: (id, reason) => patch(`/api/users/${id}/disable`, null, why(reason)),
-    enable: (id, reason) => patch(`/api/users/${id}/enable`, null, why(reason)),
-  },
+  const main = route.console
+      ? `<div class="console">
+         <nav class="rail" aria-label="Console">${railHtml(path)}</nav>
+         <section class="console__main" id="view"></section>
+       </div>`
+      : '<main class="page" id="view"></main>';
 
-  branches: {
-    list: () => get('/api/branches'),
-    get: (id) => get(`/api/branches/${id}`),
-    create: (payload) => post('/api/branches', payload),
-    update: (id, payload) => put(`/api/branches/${id}`, payload),
-    deactivate: (id) => patch(`/api/branches/${id}/deactivate`),
-    activate: (id) => patch(`/api/branches/${id}/activate`),
-    remove: (id) => del(`/api/branches/${id}`),
-  },
+  document.getElementById('app').innerHTML = `
+    <header class="global-nav">
+      <div class="global-nav__inner">
+        <a class="brand" href="#/${isStaff() ? 'console' : 'explore'}" aria-label="AXLE home">
+          <span class="brand-mark">AXLE<i></i></span>
+          <span class="brand-sub">Luxury<br>Rental</span>
+        </a>
+        <div class="topbar__actions">
+          <button class="icon-btn" type="button" data-spotlight aria-label="Search (press /)" title="Search  /">${icon('search', 18)}</button>
+          ${actions}
+        </div>
+      </div>
+    </header>
+    <div class="subnav${route.console ? '' : ' subnav--centred'}" id="subnav">
+      <div class="subnav__inner">
+        ${route.console ? `<div class="subnav__title">${esc(route.title || 'Axle')}<small>${esc(route.sub || '')}</small></div>` : ''}
+        <nav class="subnav__links" aria-label="Sections">${links}</nav>
+      </div>
+    </div>
+    ${main}`;
 
-  transfers: {
-    list: () => get('/api/branches/transfers'),
-    pending: () => get('/api/branches/transfers/pending'),
-    create: (payload) => post('/api/branches/transfers', payload),
-    complete: (id) => patch(`/api/branches/transfers/${id}/complete`),
-    cancel: (id) => patch(`/api/branches/transfers/${id}/cancel`),
-  },
+  bindShell();
+  updateChromeShadow();
+  if (user) refreshUnread().then(paintBadge);
+}
 
-  vehicles: {
-    list: (query) => get('/api/vehicles', query),
-    page: (query) => get('/api/vehicles/page', query),
-    catalogue: () => get('/api/vehicles/catalogue'),
-    get: (id) => get(`/api/vehicles/${id}`),
-    search: (pickup, ret, branchId, filters = {}) => get('/api/vehicles/search', { pickup, return: ret, branchId, ...filters }),
-    busy: (id, query) => get(`/api/vehicles/${id}/busy`, query),
-    nextFree: (id, nights, from) => get(`/api/vehicles/${id}/next-free`, { nights, from }),
-    create: (payload) => post('/api/vehicles', payload),
-    update: (id, payload) => put(`/api/vehicles/${id}`, payload),
-    setStatus: (id, status, reason) => patch(`/api/vehicles/${id}/status`, { status }, why(reason)),
-    uploadImage: (id, file) => upload(`/api/vehicles/${id}/image`, file),
-    removeImage: (id) => del(`/api/vehicles/${id}/image`),
-    gallery: (id) => get(`/api/vehicles/${id}/images`),
-    addGalleryImage: (id, file) => upload(`/api/vehicles/${id}/images`, file),
-    removeGalleryImage: (id, imageId) => del(`/api/vehicles/${id}/images/${imageId}`),
-    remove: (id) => del(`/api/vehicles/${id}`),
-  },
+function railHtml(path) {
+  return RAIL.map((group, i) => {
+    const items = group
+        .filter(([, , , adminOnly]) => !adminOnly || isAdmin())
+        .map(([href, label, iconName]) => `
+        <a class="rail__item${path === href ? ' is-active' : ''}" href="#/${href}"${path === href ? ' aria-current="page"' : ''}>
+          <i>${icon(iconName, 19)}</i><span>${esc(label)}</span>
+        </a>`).join('');
+    if (!items) return '';
+    return `${i > 0 ? '<div class="rail__sep"></div>' : ''}<div class="rail__group">${items}</div>`;
+  }).join('');
+}
 
-  bookings: {
-    create: (payload) => post('/api/bookings', payload),
-    get: (id) => get(`/api/bookings/${id}`),
-    payment: (id) => get(`/api/bookings/${id}/payment`),
-    charges: (id) => get(`/api/bookings/${id}/charges`),
-    mine: () => get('/api/bookings/mine'),
-    pending: () => get('/api/bookings/pending'),
-    all: () => get('/api/bookings'),
-    page: (query) => get('/api/bookings/page', query),
-    timeline: (query) => get('/api/bookings/timeline', query),
-    overdue: () => get('/api/bookings/overdue'),
-    missedPickups: () => get('/api/bookings/missed-pickups'),
-    approve: (id) => patch(`/api/bookings/${id}/approve`),
-    reject: (id, reason) => patch(`/api/bookings/${id}/reject`, null, why(reason)),
-    bulk: (action, ids, reason) => post('/api/bookings/bulk', { action, ids, reason }),
-    cancel: (id, reason) => patch(`/api/bookings/${id}/cancel`, null, why(reason)),
-    staffCancel: (id, reason) => patch(`/api/bookings/${id}/staff-cancel`, null, why(reason)),
-    noShow: (id, reason) => patch(`/api/bookings/${id}/no-show`, null, why(reason)),
-    changeDates: (id, pickup, ret) => patch(`/api/bookings/${id}/dates`, { pickup, return: ret }),
-    extend: (id, ret) => patch(`/api/bookings/${id}/extend`, { return: ret }),
-    remove: (id, reason) => del(`/api/bookings/${id}`, why(reason)),
-  },
+export function paintBadge() {
+  const badge = document.getElementById('bell-badge');
+  if (!badge) return;
+  badge.hidden = store.unread === 0;
+  badge.textContent = store.unread > 9 ? '9+' : String(store.unread);
+}
 
-  handovers: {
-    pickup: (bookingId, payload) => post(`/api/handovers/pickup/${bookingId}`, payload),
-    returnVehicle: (bookingId, payload) => post(`/api/handovers/return/${bookingId}`, payload),
-    active: () => get('/api/handovers/active'),
-    byBooking: (bookingId) => get(`/api/handovers/booking/${bookingId}`),
-  },
+function bindShell() {
+  const btn = document.getElementById('account-btn');
+  const menu = document.getElementById('account-menu');
+  if (btn && menu) {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      btn.setAttribute('aria-expanded', String(!menu.hidden));
+    });
+    menu.addEventListener('click', (e) => { if (e.target.closest('a')) menu.hidden = true; });
+  }
+  const logout = document.getElementById('logout-btn');
+  if (logout) logout.addEventListener('click', signOut);
+}
 
-  maintenance: {
-    list: () => get('/api/maintenance'),
-    byVehicle: (vehicleId) => get(`/api/maintenance/vehicle/${vehicleId}`),
-    reminders: (days = 30) => get('/api/maintenance/reminders', { days }),
-    create: (payload) => post('/api/maintenance', payload),
-    update: (id, payload) => put(`/api/maintenance/${id}`, payload),
-    setStatus: (id, status) => patch(`/api/maintenance/${id}/status`, { status }),
-    start: (id) => patch(`/api/maintenance/${id}/status`, { status: 'IN_PROGRESS' }),
-    complete: (id) => patch(`/api/maintenance/${id}/complete`),
-    remove: (id) => del(`/api/maintenance/${id}`),
-  },
+export async function signOut() {
+  try { await api.auth.logout(); } catch { /* session may already be gone */ }
+  store.user = null;
+  store.unread = 0;
+  invalidate();
+  toast('You have been signed out');
+  navigate('/explore');
+}
 
-  insurance: {
-    list: (vehicleId) => get('/api/insurance-policies', { vehicleId }),
-    expiring: (days = 30) => get('/api/insurance-policies/expiring', { days }),
-    create: (payload) => post('/api/insurance-policies', payload),
-    update: (id, payload) => put(`/api/insurance-policies/${id}`, payload),
-    remove: (id) => del(`/api/insurance-policies/${id}`),
-  },
+/** The frosted bar grows a hairline once the page moves under it. */
+function updateChromeShadow() {
+  const bar = document.getElementById('subnav');
+  if (!bar) return;
+  bar.classList.toggle('is-scrolled', window.scrollY > 4);
+  // Dark while a dark hero (the landing studio, the branch map) is under the bar.
+  const scene = document.querySelector('[data-under-nav="dark"]');
+  bar.classList.toggle('is-over-dark', !!scene && scene.getBoundingClientRect().bottom > bar.getBoundingClientRect().bottom);
+}
 
-  damage: {
-    list: (status) => get('/api/damage-reports', { status }),
-    byVehicle: (vehicleId) => get(`/api/damage-reports/vehicle/${vehicleId}`),
-    create: (payload) => post('/api/damage-reports', payload),
-    setStatus: (id, status, reason) => patch(`/api/damage-reports/${id}/status`, { status, reason }),
-    remove: (id) => del(`/api/damage-reports/${id}`),
-  },
+// ---------- global listeners ----------
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('account-menu');
+  if (menu && !menu.hidden && !e.target.closest('.account')) {
+    menu.hidden = true;
+    document.getElementById('account-btn')?.setAttribute('aria-expanded', 'false');
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const menu = document.getElementById('account-menu');
+    if (menu) menu.hidden = true;
+  }
+});
+window.addEventListener('scroll', updateChromeShadow, { passive: true });
+window.addEventListener('hashchange', render);
+window.addEventListener('auth:expired', () => {
+  if (!store.user) return;
+  store.user = null;
+  invalidate();
+  toast('Your session has ended. Please sign in again.', 'error');
+  const { path } = parseHash();
+  navigate(`/login?next=${encodeURIComponent(`/${path}`)}`);
+});
 
-  claims: {
-    list: (status) => get('/api/claims', { status }),
-    create: (payload) => post('/api/claims', payload),
-    setStatus: (id, status, reason) => patch(`/api/claims/${id}/status`, { status, reason }),
-    remove: (id) => del(`/api/claims/${id}`),
-  },
+export function setUser(user) {
+  store.user = user;
+  invalidate();
+  syncSaved();
+}
 
-  payments: {
-    list: (status) => get('/api/payments', { status }),
-    page: (query) => get('/api/payments/page', query),
-    byBooking: (bookingId) => get(`/api/payments/booking/${bookingId}`),
-    markPaid: (id) => patch(`/api/payments/${id}/paid`),
-    markPending: (id, reason) => patch(`/api/payments/${id}/pending`, null, why(reason)),
-  },
+export const roleLabel = (role) => (role === 'ADMINISTRATOR' ? 'Administrator' : humanize(role));
 
-  notifications: {
-    mine: () => get('/api/notifications/mine'),
-    unread: () => get('/api/notifications/mine/unread'),
-    markRead: (id) => patch(`/api/notifications/${id}/read`),
-    markAllRead: () => patch('/api/notifications/mine/read-all'),
-    remove: (id) => del(`/api/notifications/${id}`),
-  },
-
-  audit: {
-    history: (entityType, entityId) => get(`/api/audit/${entityType}/${entityId}`),
-    recent: (limit = 100) => get('/api/audit', { limit }),
-  },
-
-  reminders: {
-    run: () => post('/api/reminders/run'),
-  },
-
-  dashboard: (branchId) => get('/api/dashboard', { branchId }),
-};
+// ---------- boot ----------
+(async function boot() {
+  bindPrefs();
+  bindSpotlight();
+  bindTray();
+  // The Saved count in the context bar follows the list without a re-render.
+  window.addEventListener('prefs:change', (e) => {
+    if (e.detail.key !== 'saved') return;
+    const n = savedCars.list().length;
+    document.querySelectorAll('[data-count="saved"]').forEach((c) => { c.textContent = n; c.hidden = n === 0; });
+  });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-spotlight]')) { e.preventDefault(); openSpotlight(); }
+  });
+  await loadUser();
+  syncSaved();
+  if (!window.location.hash) {
+    history.replaceState(null, '', `#${homeFor()}`);
+  }
+  render();
+}());

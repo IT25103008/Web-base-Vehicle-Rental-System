@@ -1,6 +1,10 @@
 package com.vehiclerental.service.impl;
 
-import com.vehiclerental.dao.*;
+import com.vehiclerental.dao.BookingDao;
+import com.vehiclerental.dao.BranchDao;
+import com.vehiclerental.dao.UserDao;
+import com.vehiclerental.dao.VehicleDao;
+import com.vehiclerental.dao.VehicleTransferDao;
 import com.vehiclerental.enums.TransferStatus;
 import com.vehiclerental.enums.VehicleStatus;
 import com.vehiclerental.exception.InvalidStatusTransitionException;
@@ -59,14 +63,14 @@ public class BranchServiceImpl implements BranchService {
         b.setStatus(normaliseStatus(b.getStatus() == null ? "ACTIVE" : b.getStatus()));
         Branch saved = branchDao.save(b);
         auditService.record(BRANCH, saved.getBranchId(), "CREATE", actorUserId,
-                            "Branch " + saved.getName() + " opened");
+                "Branch " + saved.getName() + " opened");
         return saved;
     }
 
     @Override
     public Branch findById(int branchId) {
         return branchDao.findById(branchId)
-            .orElseThrow(() -> new ResourceNotFoundException("Branch not found: " + branchId));
+                .orElseThrow(() -> new ResourceNotFoundException("Branch not found: " + branchId));
     }
 
     @Override
@@ -97,7 +101,7 @@ public class BranchServiceImpl implements BranchService {
                     requireNothingOutstanding(branchId);
                 }
                 auditService.recordStatusChange(BRANCH, branchId, existing.getStatus(), target,
-                                                actorUserId, "Changed while editing the branch");
+                        actorUserId, "Changed while editing the branch");
                 existing.setStatus(target);
             }
         }
@@ -122,9 +126,9 @@ public class BranchServiceImpl implements BranchService {
 
         branchDao.updateStatus(branchId, "INACTIVE");
         auditService.recordStatusChange(BRANCH, branchId, "ACTIVE", "INACTIVE", actorUserId,
-                                        "Branch closed to new business");
+                "Branch closed to new business");
         notificationService.safeSendToAdministrators("BRANCH_CLOSED",
-            "Branch " + b.getName() + " has been closed to new business.");
+                "Branch " + b.getName() + " has been closed to new business.");
     }
 
     @Override
@@ -136,7 +140,7 @@ public class BranchServiceImpl implements BranchService {
         }
         branchDao.updateStatus(branchId, "ACTIVE");
         auditService.recordStatusChange(BRANCH, branchId, "INACTIVE", "ACTIVE", actorUserId,
-                                        "Branch re-opened");
+                "Branch re-opened");
     }
 
     @Override
@@ -146,15 +150,15 @@ public class BranchServiceImpl implements BranchService {
 
         if (!vehicleDao.findByBranch(branchId).isEmpty()) {
             throw new InvalidStatusTransitionException(
-                "This branch still holds vehicles. Transfer them elsewhere before deleting it.");
+                    "This branch still holds vehicles. Transfer them elsewhere before deleting it.");
         }
         if (!userDao.findStaffByBranch(branchId).isEmpty()) {
             throw new InvalidStatusTransitionException(
-                "Staff are still assigned to this branch. Move them before deleting it.");
+                    "Staff are still assigned to this branch. Move them before deleting it.");
         }
         if (!branchBookings(branchId).isEmpty()) {
             throw new InvalidStatusTransitionException(
-                "This branch has booking history and cannot be deleted. Close it instead.");
+                    "This branch has booking history and cannot be deleted. Close it instead.");
         }
 
         branchDao.delete(branchId);
@@ -175,7 +179,7 @@ public class BranchServiceImpl implements BranchService {
                                            String reason, int actorUserId) {
 
         Vehicle vehicle = vehicleDao.findById(vehicleId)
-            .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + vehicleId));
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + vehicleId));
 
         if (transferDate == null) {
             throw new IllegalArgumentException("Transfer date is required");
@@ -193,22 +197,22 @@ public class BranchServiceImpl implements BranchService {
         }
         if (!transferDao.findPendingByVehicle(vehicleId).isEmpty()) {
             throw new InvalidStatusTransitionException(
-                "This vehicle already has a transfer pending");
+                    "This vehicle already has a transfer pending");
         }
         if (vehicle.getStatus() == VehicleStatus.RENTED) {
             throw new InvalidStatusTransitionException(
-                "Cannot transfer a vehicle that is currently out with a customer");
+                    "Cannot transfer a vehicle that is currently out with a customer");
         }
 
         // Any live booking that is still running on or after the transfer date
         // would be collected from the wrong branch.
         List<Booking> affected = bookingDao.findLiveByVehicleInWindow(
-            vehicleId, transferDate, transferDate.plusDays(RentalPolicy.MAX_ADVANCE_DAYS));
+                vehicleId, transferDate, transferDate.plusDays(RentalPolicy.MAX_ADVANCE_DAYS));
         if (!affected.isEmpty()) {
             Booking b = affected.get(0);
             throw new InvalidStatusTransitionException(
-                "Booking #" + b.getBookingId() + " (" + b.getPickupDate() + " to " + b.getReturnDate()
-                + ") collects this vehicle from its current branch. Cancel it before transferring.");
+                    "Booking #" + b.getBookingId() + " (" + b.getPickupDate() + " to " + b.getReturnDate()
+                            + ") collects this vehicle from its current branch. Cancel it before transferring.");
         }
 
         VehicleTransfer t = new VehicleTransfer();
@@ -221,10 +225,10 @@ public class BranchServiceImpl implements BranchService {
         VehicleTransfer saved = transferDao.save(t);
 
         auditService.record(TRANSFER, saved.getTransferId(), "CREATE", actorUserId,
-            vehicle.getPlateNumber() + " scheduled to move to " + target.getName() + " on " + transferDate);
+                vehicle.getPlateNumber() + " scheduled to move to " + target.getName() + " on " + transferDate);
         notificationService.safeSendToBranchStaff(vehicle.getBranchId(), "VEHICLE_TRANSFER_SCHEDULED",
-            vehicle.getModel() + " (" + vehicle.getPlateNumber() + ") leaves for "
-            + target.getName() + " on " + transferDate + ".");
+                vehicle.getModel() + " (" + vehicle.getPlateNumber() + ") leaves for "
+                        + target.getName() + " on " + transferDate + ".");
         return saved;
     }
 
@@ -237,20 +241,20 @@ public class BranchServiceImpl implements BranchService {
         }
         if (t.getTransferDate().isAfter(AppClock.today())) {
             throw new InvalidStatusTransitionException(
-                "This transfer is planned for " + t.getTransferDate() + " and cannot be completed early");
+                    "This transfer is planned for " + t.getTransferDate() + " and cannot be completed early");
         }
 
         Vehicle vehicle = vehicleDao.findById(t.getVehicleId())
-            .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + t.getVehicleId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + t.getVehicleId()));
         if (vehicle.getStatus() == VehicleStatus.RENTED) {
             throw new InvalidStatusTransitionException(
-                "Cannot complete the transfer while the vehicle is out with a customer");
+                    "Cannot complete the transfer while the vehicle is out with a customer");
         }
 
         Branch target = findById(t.getToBranchId());
         if (!"ACTIVE".equals(target.getStatus())) {
             throw new InvalidStatusTransitionException(
-                "The destination branch has closed. Cancel this transfer and raise a new one.");
+                    "The destination branch has closed. Cancel this transfer and raise a new one.");
         }
 
         // Change the vehicle's branch and mark the transfer completed — two writes in one transaction.
@@ -258,10 +262,10 @@ public class BranchServiceImpl implements BranchService {
         transferDao.updateStatus(transferId, TransferStatus.COMPLETED.name());
 
         auditService.recordStatusChange(TRANSFER, transferId, TransferStatus.PENDING.name(),
-                                        TransferStatus.COMPLETED.name(), actorUserId,
-                                        vehicle.getPlateNumber() + " now at " + target.getName());
+                TransferStatus.COMPLETED.name(), actorUserId,
+                vehicle.getPlateNumber() + " now at " + target.getName());
         notificationService.safeSendToBranchStaff(t.getToBranchId(), "VEHICLE_ARRIVED",
-            vehicle.getModel() + " (" + vehicle.getPlateNumber() + ") has arrived at your branch.");
+                vehicle.getModel() + " (" + vehicle.getPlateNumber() + ") has arrived at your branch.");
     }
 
     @Override
@@ -273,7 +277,36 @@ public class BranchServiceImpl implements BranchService {
         }
         transferDao.updateStatus(transferId, TransferStatus.CANCELLED.name());
         auditService.recordStatusChange(TRANSFER, transferId, TransferStatus.PENDING.name(),
-                                        TransferStatus.CANCELLED.name(), actorUserId, null);
+                TransferStatus.CANCELLED.name(), actorUserId, null);
+    }
+
+    /**
+     * Removes a transfer record. A transfer has nothing hanging off it, so the
+     * only rules are: administrators only (see BranchController), a reason, and a
+     * line in the audit trail saying what was removed. A pending transfer that is
+     * deleted no longer blocks bookings, and its old branch is told the move is off.
+     * A completed one is history only: the vehicle stays where it now is.
+     */
+    @Override
+    @Transactional
+    public void deleteTransfer(int transferId, int actorUserId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Deleting a transfer requires a reason");
+        }
+        VehicleTransfer t = loadTransfer(transferId);
+        Vehicle vehicle = vehicleDao.findById(t.getVehicleId()).orElse(null);
+        String car = vehicle == null ? "vehicle #" + t.getVehicleId()
+                : vehicle.getModel() + " (" + vehicle.getPlateNumber() + ")";
+
+        transferDao.delete(transferId);
+        auditService.record(TRANSFER, transferId, "DELETE", actorUserId,
+                "Deleted " + t.getStatus() + " transfer of " + car + " from branch #" + t.getFromBranchId()
+                        + " to branch #" + t.getToBranchId() + " on " + t.getTransferDate() + ". Reason: " + reason.trim());
+
+        if (t.getStatus() == TransferStatus.PENDING) {
+            notificationService.safeSendToBranchStaff(t.getFromBranchId(), "VEHICLE_TRANSFER_CANCELLED",
+                    car + " is no longer leaving on " + t.getTransferDate() + ".");
+        }
     }
 
     @Override
@@ -290,35 +323,35 @@ public class BranchServiceImpl implements BranchService {
 
     private void requireNothingOutstanding(int branchId) {
         List<Booking> live = branchBookings(branchId).stream()
-            .filter(b -> b.getStatus().name().equals("PENDING_APPROVAL")
-                      || b.getStatus().name().equals("APPROVED")
-                      || b.getStatus().name().equals("ACTIVE_RENTAL"))
-            .toList();
+                .filter(b -> b.getStatus().name().equals("PENDING_APPROVAL")
+                        || b.getStatus().name().equals("APPROVED")
+                        || b.getStatus().name().equals("ACTIVE_RENTAL"))
+                .toList();
         if (!live.isEmpty()) {
             Booking b = live.get(0);
             throw new InvalidStatusTransitionException(
-                "Booking #" + b.getBookingId() + " (" + b.getStatus() + ") still collects from this branch. "
-                + "Deal with it before closing the branch.");
+                    "Booking #" + b.getBookingId() + " (" + b.getStatus() + ") still collects from this branch. "
+                            + "Deal with it before closing the branch.");
         }
 
         boolean vehiclesOut = vehicleDao.findByBranch(branchId).stream()
-            .anyMatch(v -> v.getStatus() == VehicleStatus.RENTED || v.getStatus() == VehicleStatus.RESERVED);
+                .anyMatch(v -> v.getStatus() == VehicleStatus.RENTED || v.getStatus() == VehicleStatus.RESERVED);
         if (vehiclesOut) {
             throw new InvalidStatusTransitionException(
-                "Vehicles from this branch are still out with customers");
+                    "Vehicles from this branch are still out with customers");
         }
     }
 
     /** Every booking whose pickup branch is this one. */
     private List<Booking> branchBookings(int branchId) {
         return bookingDao.findAll().stream()
-            .filter(b -> b.getPickupBranchId() == branchId)
-            .toList();
+                .filter(b -> b.getPickupBranchId() == branchId)
+                .toList();
     }
 
     private VehicleTransfer loadTransfer(int transferId) {
         return transferDao.findById(transferId)
-            .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + transferId));
+                .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + transferId));
     }
 
     private void validateDetails(Branch b) {
